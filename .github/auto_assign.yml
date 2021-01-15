@@ -1,0 +1,10 @@
+addReviewers: true
+addAssignees: author
+
+reviewers:
+  - shellwedance
+  - donggyupark
+  - hookak
+  - SangHyeok-Kim95
+
+numberOfReviewers: 2
