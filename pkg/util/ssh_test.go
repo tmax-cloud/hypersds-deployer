@@ -1,19 +1,23 @@
 package util
 
-import(
-	"testing"
+import (
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	"os/user"
 )
 
-func TestRunSSHCmd(t *testing.T) {
-	user, _ := user.Current()
-	testCommand := []string{"ls", "-alh"}
+var _ = Describe("SSH Command Test", func() {
+	defer GinkgoRecover()
+	Describe("[RunSSHCmd Test]", func() {
+		It("should return same username", func() {
+			currentUser, err := user.Current()
+			testCommand := []string{"printf", "$USER"}
 
-	result, err := RunSSHCmd(user.Username, "localhost", testCommand...)
+			result, err := RunSSHCmd(currentUser.Username, "localhost", testCommand...)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.String()).To(Equal(currentUser.Username))
+		})
+	})
 
-	t.Log(result.String())
-
-	if err != nil {
-		t.Fatal(err)
-	}
-}
+})
