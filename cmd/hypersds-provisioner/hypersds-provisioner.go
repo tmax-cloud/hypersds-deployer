@@ -1,6 +1,6 @@
 package provisioner
 
-import(
+import (
 	"hypersds-provisioner/pkg/util"
 	"os"
 )
@@ -13,6 +13,16 @@ var (
 
 func Run() error {
 	//// Test
+	cephcluster, err := util.ParseYaml()
+	if err != nil {
+		return err
+	}
+
+	err = util.GenerateConfFile(cephcluster)
+	if err != nil {
+		return err
+	}
+
 	testCommand := []string{"ls", "-alh"}
 
 	output, err := util.RunSSHCmd(hostName, hostAddr, testCommand...)
@@ -23,6 +33,7 @@ func Run() error {
 	} else {
 		output.WriteTo(os.Stdout)
 	}
+	
 
 	return nil
 }

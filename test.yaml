@@ -1,0 +1,15 @@
+mon:
+  count: 1
+osd:
+- hostname: tmax
+  devices:
+  - /dev/sda
+  - /dev/sdb
+nodes:
+- ip: 192.168.7.1
+  userid: root
+  password: test
+  hostname: tmax
+config: 
+  mon_warn_on_pool_no_redundancy: "false"
+  osd_pool_default_size: "1"
