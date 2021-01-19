@@ -1,21 +1,24 @@
 package provisioner
 
-import(
+import (
+	"fmt"
 	"hypersds-provisioner/pkg/util"
 	"os"
 )
 
 var (
 	//// Test
-	hostName = "k8s"
-	hostAddr = "192.168.50.90"
+	hostName = "tmax"
+	hostAddr = "192.168.7.19"
 )
 
 func Run() error {
+	////Test2
+	util.TestStruct()
 	//// Test
 	testCommand := []string{"ls", "-alh"}
-
-	output, err := util.RunSSHCmd(hostName, hostAddr, testCommand...)
+	fmt.Printf("qqqqq")
+	output, err := util.RunSSHCmd(util.ExecWrapper, hostName, hostAddr, testCommand...)
 
 	if err != nil {
 		output.WriteTo(os.Stderr)
