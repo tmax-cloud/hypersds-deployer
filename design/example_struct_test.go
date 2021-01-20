@@ -1,4 +1,4 @@
-package util
+package design
 
 import (
 	gomock "github.com/golang/mock/gomock"
@@ -28,12 +28,13 @@ var _ = Describe("Struct mocking test", func() {
 		It("should return test", func() {
 			//mock struct의 resultOne()은 "test"를 return하도록 정의
 			m.EXPECT().resultOne().Return("test").AnyTimes()
+
 			// Newtwo를 통한 two struct 생성
-			testStruct := Newtwo(m)
-			printResult := testStruct.print()
+			newTwo := NewTwo(m)
+			printResult := newTwo.print()
+
 			// result는 exec에서 받은 resultStdout를 그대로 return한 것!
 			Expect(printResult).To(Equal("test"))
-			//Expect(printResult).To(Equal("no"))
 		})
 	})
 

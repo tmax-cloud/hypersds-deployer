@@ -11,43 +11,6 @@ import (
 	reflect "reflect"
 )
 
-// MockoneInterface is a mock of oneInterface interface
-type MockoneInterface struct {
-	ctrl     *gomock.Controller
-	recorder *MockoneInterfaceMockRecorder
-}
-
-// MockoneInterfaceMockRecorder is the mock recorder for MockoneInterface
-type MockoneInterfaceMockRecorder struct {
-	mock *MockoneInterface
-}
-
-// NewMockoneInterface creates a new mock instance
-func NewMockoneInterface(ctrl *gomock.Controller) *MockoneInterface {
-	mock := &MockoneInterface{ctrl: ctrl}
-	mock.recorder = &MockoneInterfaceMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockoneInterface) EXPECT() *MockoneInterfaceMockRecorder {
-	return m.recorder
-}
-
-// resultOne mocks base method
-func (m *MockoneInterface) resultOne() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "resultOne")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// resultOne indicates an expected call of resultOne
-func (mr *MockoneInterfaceMockRecorder) resultOne() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "resultOne", reflect.TypeOf((*MockoneInterface)(nil).resultOne))
-}
-
 // MockExecInterface is a mock of ExecInterface interface
 type MockExecInterface struct {
 	ctrl     *gomock.Controller
