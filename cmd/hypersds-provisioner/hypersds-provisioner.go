@@ -1,7 +1,6 @@
 package provisioner
 
 import (
-	"fmt"
 	"hypersds-provisioner/pkg/util"
 	"os"
 )
@@ -13,11 +12,7 @@ var (
 )
 
 func Run() error {
-	////Test2
-	util.TestStruct()
-	//// Test
 	testCommand := []string{"ls", "-alh"}
-	fmt.Printf("qqqqq")
 	output, err := util.RunSSHCmd(util.ExecWrapper, hostName, hostAddr, testCommand...)
 
 	if err != nil {
