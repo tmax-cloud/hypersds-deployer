@@ -1,7 +1,7 @@
 package main
 
 import (
-	"hypersds-provisioner/cmd/hypersds-provisioner"
+	provisioner "hypersds-provisioner/cmd/hypersds-provisioner"
 	"os"
 )
 

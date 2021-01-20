@@ -6,11 +6,6 @@ import (
 	"os/exec"
 )
 
-//
-type oneInterface interface {
-	resultOne() string
-}
-
 // exec package의 function 대신 호출될 exec interface
 type ExecInterface interface {
 	commandExecute(resultStdout, resultStderr *bytes.Buffer, ctx context.Context, name string, arg ...string) error
