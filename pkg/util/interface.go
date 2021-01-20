@@ -14,12 +14,12 @@ type ExecInterface interface {
 // exec interface method를 가진 struct
 // 실제 코드에서는 해당 struct의 method가 호출되고,
 // unit test 시에는 이 것과 비슷한 구조의 mock struct를 구현하여(gomock이 자동으로 생성해줌) mock struct의 method가 호출된다.
-type ExecStruct struct {
+type execStruct struct {
 }
 
 // 실제 코드에서 exec interface를 통해 수행되는 method
 // exec package function 수행을 감싸는 method
-func (e *ExecStruct) commandExecute(resultStdout, resultStderr *bytes.Buffer, ctx context.Context, name string, arg ...string) error {
+func (e *execStruct) commandExecute(resultStdout, resultStderr *bytes.Buffer, ctx context.Context, name string, arg ...string) error {
 	cmd := exec.CommandContext(ctx, name, arg...)
 	cmd.Stdout = resultStdout
 	cmd.Stderr = resultStderr
@@ -33,5 +33,5 @@ var ExecWrapper ExecInterface
 
 func init() {
 	//ExecWrapper의 ExecStruct를 할당하여 실제 코드 상에서 최종적으로 ExecStruct.commandExecute를 호출되게 함
-	ExecWrapper = &ExecStruct{}
+	ExecWrapper = &execStruct{}
 }
