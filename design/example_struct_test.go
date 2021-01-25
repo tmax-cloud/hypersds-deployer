@@ -6,35 +6,35 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Struct mocking test", func() {
+var _ = Describe("Area mocking test", func() {
 	defer GinkgoRecover()
-	// mock 초기화.......
+	// mock 초기화
 	// gomock을 사용하면 mock.go와 같이 자동으로 interface에 대한 mock struct와 method를 생성해줌
 	var (
 		mockCtrl *gomock.Controller
-		m        *MockoneInterface //oneInterface의 mock interface
+		m        *MockShape // Shape의 mock struct
 	)
 
 	BeforeEach(func() {
 		mockCtrl = gomock.NewController(GinkgoT())
-		m = NewMockoneInterface(mockCtrl) // interface 별로 mock 생성자가 다름. oneInterface의 mock 생성자 function
+		m = NewMockShape(mockCtrl) // interface 별로 mock 생성자가 다름. Shape의 mock 생성자 function
 	})
 
 	AfterEach(func() {
 		mockCtrl.Finish()
 	})
 
-	Describe("[Two struct Test]", func() {
-		It("should return test", func() {
-			//mock struct의 resultOne()은 "test"를 return하도록 정의
-			m.EXPECT().resultOne().Return("test").AnyTimes()
+	Describe("[Area Test]", func() {
+		It("should return true", func() {
+			//mock struct의 Area() 함수를 25.0을 return하도록 정의
+			m.EXPECT().Area().Return(25.).AnyTimes()
 
-			// Newtwo를 통한 two struct 생성
-			newTwo := NewTwo(m)
-			printResult := newTwo.print()
+			// SquareManager가 자신 square의 넓이를 36.0으로 갖도록 정의
+			sm := SquareManager{6.}
 
-			// result는 exec에서 받은 resultStdout를 그대로 return한 것!
-			Expect(printResult).To(Equal("test"))
+			// 결과는 true여야 함
+			cmpResult := sm.IsWiderThan(m)
+			Expect(cmpResult).To(Equal(true))
 		})
 	})
 
