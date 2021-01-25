@@ -1,4 +1,4 @@
-package util
+package wrapper
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 
 // exec package의 function 대신 호출될 exec interface
 type ExecInterface interface {
-	commandExecute(resultStdout, resultStderr *bytes.Buffer, ctx context.Context, name string, arg ...string) error
+	CommandExecute(resultStdout, resultStderr *bytes.Buffer, ctx context.Context, name string, arg ...string) error
 }
 
 // exec interface method를 가진 struct
@@ -19,7 +19,7 @@ type execStruct struct {
 
 // 실제 코드에서 exec interface를 통해 수행되는 method
 // exec package function 수행을 감싸는 method
-func (e *execStruct) commandExecute(resultStdout, resultStderr *bytes.Buffer, ctx context.Context, name string, arg ...string) error {
+func (e *execStruct) CommandExecute(resultStdout, resultStderr *bytes.Buffer, ctx context.Context, name string, arg ...string) error {
 	cmd := exec.CommandContext(ctx, name, arg...)
 	cmd.Stdout = resultStdout
 	cmd.Stderr = resultStderr
