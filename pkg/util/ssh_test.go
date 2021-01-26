@@ -3,7 +3,8 @@ package util
 import (
 	"bytes"
 
-    "hypersds-provisioner/pkg/common/wrapper"
+	"hypersds-provisioner/pkg/common/wrapper"
+
 	gomock "github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -32,6 +33,8 @@ var _ = Describe("SSH Command Test", func() {
 	Describe("[RunSSHCmd Test]", func() {
 		It("should return same username", func() {
 			currentUser, err := user.Current()
+			Expect(err).NotTo(HaveOccurred())
+
 			testCommand := []string{"printf", "$USER"}
 			// mock struct는 정의된 function 호출시 들어올 인자값과 return 값을 정의할 수 있음.
 			//  이는 정해진 값일 수도 있고, 아래와 같이 함수를 정의해서 계산값을 return받거나 인자로 들어온 변수를 수정할 수도 있음

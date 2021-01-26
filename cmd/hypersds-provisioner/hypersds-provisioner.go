@@ -1,8 +1,8 @@
 package provisioner
 
 import (
-	"hypersds-provisioner/pkg/util"
 	"hypersds-provisioner/pkg/common/wrapper"
+	"hypersds-provisioner/pkg/util"
 	"os"
 )
 
@@ -17,10 +17,17 @@ func Run() error {
 	output, err := util.RunSSHCmd(wrapper.ExecWrapper, hostName, hostAddr, testCommand...)
 
 	if err != nil {
-		output.WriteTo(os.Stderr)
+		_, err2 := output.WriteTo(os.Stderr)
+		if err2 != nil {
+			return err2
+		}
+
 		return err
 	} else {
-		output.WriteTo(os.Stdout)
+		_, err2 := output.WriteTo(os.Stdout)
+		if err2 != nil {
+			return err2
+		}
 	}
 
 	return nil
