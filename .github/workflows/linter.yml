@@ -1,0 +1,14 @@
+name: Pull Request Linter Check
+on: [pull_request]
+jobs:
+  linter:
+    name: Run Linter Check
+    runs-on: ubuntu-18.04
+    steps:
+    - name: Check out the code
+      uses: actions/checkout@v2
+    - name: Run golangci-lint
+      uses: golangci/golangci-lint-action@v2
+      with: 
+        version: v1.29
+        args: -E gosec,goconst,gofmt,goimports,unparam,govet,golint -n
