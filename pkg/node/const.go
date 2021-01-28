@@ -1,5 +1,5 @@
 package node
 
-const(
-    HostServiceType = "host"
+const (
+	HostServiceType = "host"
 )
