@@ -1,7 +1,7 @@
 package node
 
 import (
-	commonWrapper "hypersds-provisioner/pkg/common/wrapper"
+	common "hypersds-provisioner/pkg/common/wrapper"
 
 	"errors"
 )
@@ -20,7 +20,7 @@ type HostSpecInterface interface {
 	GetLabels() ([]string, error)
 	GetStatus() (string, error)
 
-	MakeYml(wrapper commonWrapper.YamlInterface) ([]byte, error)
+	MakeYml(wrapper common.YamlInterface) ([]byte, error)
 }
 
 // variables are required to be importable so that yaml wrapper marshal/unmarshal them
@@ -33,7 +33,7 @@ type HostSpec struct {
 }
 
 func (hs *HostSpec) SetServiceType() error {
-	hs.ServiceType = HostServiceType
+	hs.ServiceType = HostSpecServiceType
 	return nil
 }
 
@@ -68,7 +68,7 @@ func (hs *HostSpec) SetStatus(status string) error {
 }
 
 func (hs *HostSpec) GetServiceType() (string, error) {
-	return HostServiceType, nil
+	return HostSpecServiceType, nil
 }
 
 func (hs *HostSpec) GetHostName() (string, error) {
@@ -87,6 +87,6 @@ func (hs *HostSpec) GetStatus() (string, error) {
 	return hs.Status, nil
 }
 
-func (hs *HostSpec) MakeYml(wrapper commonWrapper.YamlInterface) ([]byte, error) {
+func (hs *HostSpec) MakeYml(wrapper common.YamlInterface) ([]byte, error) {
 	return wrapper.Marshal(hs)
 }

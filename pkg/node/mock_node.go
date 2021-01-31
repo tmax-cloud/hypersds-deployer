@@ -5,7 +5,9 @@
 package node
 
 import (
+	bytes "bytes"
 	gomock "github.com/golang/mock/gomock"
+	wrapper "hypersds-provisioner/pkg/common/wrapper"
 	reflect "reflect"
 )
 
@@ -117,4 +119,19 @@ func (m *MockNodeInterface) GetHostSpec() (HostSpecInterface, error) {
 func (mr *MockNodeInterfaceMockRecorder) GetHostSpec() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHostSpec", reflect.TypeOf((*MockNodeInterface)(nil).GetHostSpec))
+}
+
+// RunSshCmd mocks base method
+func (m *MockNodeInterface) RunSshCmd(exec wrapper.ExecInterface, cmdQuery string) (bytes.Buffer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RunSshCmd", exec, cmdQuery)
+	ret0, _ := ret[0].(bytes.Buffer)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RunSshCmd indicates an expected call of RunSshCmd
+func (mr *MockNodeInterfaceMockRecorder) RunSshCmd(exec, cmdQuery interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RunSshCmd", reflect.TypeOf((*MockNodeInterface)(nil).RunSshCmd), exec, cmdQuery)
 }

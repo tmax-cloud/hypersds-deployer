@@ -25,7 +25,7 @@ var _ = Describe("HostSpec Test", func() {
 		labelsToAdd = []string{"example3", "example4"}
 
 		hostSpec = HostSpec{
-			ServiceType: HostServiceType,
+			ServiceType: HostSpecServiceType,
 			Addr:        ipAddr,
 			HostName:    hostName,
 			Labels:      labels,
@@ -41,7 +41,7 @@ var _ = Describe("HostSpec Test", func() {
 
 		createdServiceType, err := hostSpec.GetServiceType()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(createdServiceType).To(Equal(HostServiceType))
+		Expect(createdServiceType).To(Equal(HostSpecServiceType))
 
 		// Addr getter/setter test
 		newIpAddr := "1.1.1.2"
@@ -91,7 +91,7 @@ var _ = Describe("HostSpec Test", func() {
 
 	It("is simple MakeYml case", func() {
 		expectedYmlString := fmt.Sprintf("service_type: %s\naddr: %s\nhostname: %s\nlabels:\n- %s\n- %s\nstatus: %s\n",
-			HostServiceType, ipAddr, hostName, labels[0], labels[1], status)
+			HostSpecServiceType, ipAddr, hostName, labels[0], labels[1], status)
 
 		createdBytes, err := hostSpec.MakeYml(commonWrapper.YamlWrapper)
 		Expect(err).NotTo(HaveOccurred())
