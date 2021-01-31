@@ -1,5 +1,10 @@
 package node
 
+import (
+	"time"
+)
+
 const (
-	HostServiceType = "host"
+	HostSpecServiceType = "host"
+	SshCmdTimeout       = 20 * time.Minute
 )
