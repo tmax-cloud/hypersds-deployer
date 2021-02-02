@@ -3,7 +3,7 @@ package node
 import (
 	"bytes"
 
-	commonWrapper "hypersds-provisioner/pkg/common/wrapper"
+	common "hypersds-provisioner/pkg/common/wrapper"
 
 	gomock "github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
@@ -22,7 +22,7 @@ var _ = Describe("Node Test", func() {
 	)
 
 	Describe("Getter/Setter Test", func() {
-		It("is simple getter/setter test case", func() {
+		It("is simple test case", func() {
 			// userId getter/setter test
 			userId = "shellwedance"
 			err := testingNode.SetUserId(userId)
@@ -57,12 +57,12 @@ var _ = Describe("Node Test", func() {
 	Describe("RunSshCmd Test", func() {
 		var (
 			mockCtrl *gomock.Controller
-			m        *commonWrapper.MockExecInterface
+			m        *common.MockExecInterface
 		)
 
 		BeforeEach(func() {
 			mockCtrl = gomock.NewController(GinkgoT())
-			m = commonWrapper.NewMockExecInterface(mockCtrl)
+			m = common.NewMockExecInterface(mockCtrl)
 		})
 
 		AfterEach(func() {

@@ -20,7 +20,7 @@ type HostSpecInterface interface {
 	GetLabels() ([]string, error)
 	GetStatus() (string, error)
 
-	MakeYml(wrapper common.YamlInterface) ([]byte, error)
+	MakeYmlFile(yamlWrapper common.YamlInterface, ioUtilWrapper common.IoUtilInterface, fileName string) error
 }
 
 // variables are required to be importable so that yaml wrapper marshal/unmarshal them
@@ -87,6 +87,13 @@ func (hs *HostSpec) GetStatus() (string, error) {
 	return hs.Status, nil
 }
 
-func (hs *HostSpec) MakeYml(wrapper common.YamlInterface) ([]byte, error) {
-	return wrapper.Marshal(hs)
+func (hs *HostSpec) MakeYmlFile(yamlWrapper common.YamlInterface, ioUtilWrapper common.IoUtilInterface, fileName string) error {
+	ymlBytes, err := yamlWrapper.Marshal(hs)
+	if err != nil {
+		return err
+	}
+
+	err = ioUtilWrapper.WriteFile(fileName, ymlBytes, 0644)
+
+	return err
 }
