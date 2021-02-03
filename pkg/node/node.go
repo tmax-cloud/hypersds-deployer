@@ -7,6 +7,7 @@ import (
 
 	"bytes"
 	"context"
+	"fmt"
 )
 
 type NodeInterface interface {
@@ -19,6 +20,7 @@ type NodeInterface interface {
 	GetHostSpec() (HostSpecInterface, error)
 
 	RunSshCmd(exec common.ExecInterface, cmdQuery string) (bytes.Buffer, error)
+	RunScpCmd(exec common.ExecInterface, fileName string) (bytes.Buffer, error)
 }
 
 type Node struct {
@@ -57,40 +59,76 @@ func (n *Node) GetHostSpec() (HostSpecInterface, error) {
 	return n.hostSpec, nil
 }
 
-// executing commands: sshpass -f <(printf '%s\n' userPw) ssh userId@ipAddr cmdQuery
-// TODO: replace ssh commands to go ssh pkg
+// executing commands: sshpass -f <(printf '%s\n' userPw) ssh -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null userId@ipAddr cmdQuery
+// TODO: replace sshpass command to go ssh pkg
 func (n *Node) RunSshCmd(exec common.ExecInterface, cmdQuery string) (bytes.Buffer, error) {
-	var resultStdout, resultStderr bytes.Buffer
-
 	ctx, cancel := context.WithTimeout(context.Background(), SshCmdTimeout)
 	defer cancel()
 
 	userPw, err := n.GetUserPw()
 	if err != nil {
-		panic(err)
+		return bytes.Buffer{}, err
 	}
-
-	sshCmd := "sshpass -f <(printf '%s\\n' " + userPw + ") "
 
 	userId, err := n.GetUserId()
 	if err != nil {
-		panic(err)
+		return bytes.Buffer{}, err
 	}
 	nodeHostSpec, err := n.GetHostSpec()
 	if err != nil {
-		panic(err)
+		return bytes.Buffer{}, err
 	}
 	ipAddr, err := nodeHostSpec.GetAddr()
 	if err != nil {
-		panic(err)
+		return bytes.Buffer{}, err
 	}
 
-	hostInfo := userId + "@" + ipAddr
-	sshKeyCheckOpt := "-oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null "
-	sshCmd += "ssh " + sshKeyCheckOpt + hostInfo + " " + cmdQuery
-
+	const sshKeyCheckOpt = "-oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null"
+	sshCmd := fmt.Sprintf("sshpass -f <(printf '%%s\\n' %[1]s) ssh %[2]s %[3]s@%[4]s '%[5]s'", userPw, sshKeyCheckOpt, userId, ipAddr, cmdQuery)
 	parameters := []string{"-c"}
 	parameters = append(parameters, sshCmd)
+
+	var resultStdout, resultStderr bytes.Buffer
+	err = exec.CommandExecute(&resultStdout, &resultStderr, ctx, "bash", parameters...)
+
+	if err != nil {
+		return resultStderr, err
+	}
+
+	return resultStdout, nil
+}
+
+// executing commands: sshpass -f <(printf '%s\n' userPw) scp -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null fileName userId@ipAddr:~/fileName
+// TODO: replace sshpass command to go ssh pkg
+func (n *Node) RunScpCmd(exec common.ExecInterface, fileName string) (bytes.Buffer, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), SshCmdTimeout)
+	defer cancel()
+
+	userPw, err := n.GetUserPw()
+	if err != nil {
+		return bytes.Buffer{}, err
+	}
+
+	userId, err := n.GetUserId()
+	if err != nil {
+		return bytes.Buffer{}, err
+	}
+	nodeHostSpec, err := n.GetHostSpec()
+	if err != nil {
+		return bytes.Buffer{}, err
+	}
+	ipAddr, err := nodeHostSpec.GetAddr()
+	if err != nil {
+		return bytes.Buffer{}, err
+	}
+
+	const sshKeyCheckOpt = "-oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null"
+	scpCmd := fmt.Sprintf("sshpass -f <(printf '%%s\\n' %[1]s) scp %[2]s %[3]s %[4]s@%[5]s:~/%[3]s", userPw, sshKeyCheckOpt, fileName, userId, ipAddr)
+
+	parameters := []string{"-c"}
+	parameters = append(parameters, scpCmd)
+
+	var resultStdout, resultStderr bytes.Buffer
 	err = exec.CommandExecute(&resultStdout, &resultStderr, ctx, "bash", parameters...)
 
 	if err != nil {
@@ -108,32 +146,32 @@ func (newNodeStruct *NewNodeStruct) NewNodesFromCephCr(cephSpec hypersdsv1alpha1
 		var n Node
 		err := n.SetUserId(nodeInCephSpec.UserID)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 		err = n.SetUserPw(nodeInCephSpec.Password)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 
 		var hostSpec HostSpec
 		err = hostSpec.SetServiceType()
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 
 		err = hostSpec.SetAddr(nodeInCephSpec.IP)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 
 		err = hostSpec.SetHostName(nodeInCephSpec.HostName)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 
 		err = n.SetHostSpec(&hostSpec)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 
 		nodes = append(nodes, &n)
