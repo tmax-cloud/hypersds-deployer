@@ -14,7 +14,7 @@ import (
 type CephConfigInterface interface {
 	ConfigFromAdm(wrapper.IoUtilInterface, string) error
 	SecretFromAdm(wrapper.IoUtilInterface, string) error
-	MakeIni() string
+	MakeIniFile(wrapper.IoUtilInterface, string) error
 	UpdateConfToK8s(kubeWrapper wrapper.KubeInterface) error
 	UpdateKeyringToK8s(kubeWrapper wrapper.KubeInterface) error
 
@@ -62,7 +62,7 @@ type CephConfig struct {
 
 type ConfigInitStruct struct{}
 
-func (c *ConfigInitStruct) NewConfigFromCephCr(cephCr hypersdsv1alpha1.CephClusterSpec) *CephConfig {
+func (c *ConfigInitStruct) NewConfigFromCephCr(cephCr hypersdsv1alpha1.CephClusterSpec) (*CephConfig, error) {
 	conf := CephConfig{}
 	crConf := make(map[string]string)
 
@@ -71,10 +71,7 @@ func (c *ConfigInitStruct) NewConfigFromCephCr(cephCr hypersdsv1alpha1.CephClust
 	}
 
 	err := conf.SetCrConf(crConf)
-	if err != nil {
-		return nil
-	}
-	return &conf
+	return &conf, err
 }
 
 func (conf *CephConfig) ConfigFromAdm(ioUtil wrapper.IoUtilInterface, cephconf string) error {
@@ -109,14 +106,18 @@ func (conf *CephConfig) SecretFromAdm(ioUtil wrapper.IoUtilInterface, cephsecret
 	return conf.SetAdmSecret(admSecret)
 }
 
-func (conf *CephConfig) MakeIni() string {
+func (conf *CephConfig) MakeIniFile(ioUtil wrapper.IoUtilInterface, fileName string) error {
 	ini := "[global]\n"
 	crConf, _ := conf.GetCrConf()
 	for key, value := range crConf {
 		s1 := fmt.Sprintf("\t%s = %s\n", key, value)
 		ini = fmt.Sprintf("%s%s", ini, s1)
 	}
-	return ini
+
+	buf := []byte(ini)
+	err := ioUtil.WriteFile(fileName, buf, 0644)
+
+	return err
 }
 
 //default:default SA가 configmap put할수 있는 rolebinding 있어야함!
