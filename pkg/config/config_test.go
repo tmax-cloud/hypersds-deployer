@@ -2,6 +2,7 @@ package config
 
 import (
 	"hypersds-provisioner/pkg/common/wrapper"
+	"os"
 
 	gomock "github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
@@ -66,16 +67,22 @@ var _ = Describe("Config Test", func() {
 		})
 	})
 
-	Describe("[MakeIni Test]", func() {
+	Describe("[MakeIniFile Test]", func() {
 		It("Make Ini file from Map", func() {
+			ioMock.EXPECT().WriteFile(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+				func(fileName string, data []byte, fileMode os.FileMode) error {
+					return nil
+				}).AnyTimes()
+
 			testConfig := CephConfig{
 				crConf: map[string]string{
 					"debug_osd": "20/20",
 				},
 			}
-			ini := "[global]\n\tdebug_osd = 20/20\n"
-			retini := testConfig.MakeIni()
-			Expect(retini).To(Equal(ini))
+			//ini := "[global]\n\tdebug_osd = 20/20\n"
+			err := testConfig.MakeIniFile(ioMock, "ceph.conf")
+			Expect(err).NotTo(HaveOccurred())
+			//Expect(retini).To(Equal(ini))
 		})
 	})
 
