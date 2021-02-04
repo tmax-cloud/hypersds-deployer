@@ -20,7 +20,10 @@ type NodeInterface interface {
 	GetHostSpec() (HostSpecInterface, error)
 
 	RunSshCmd(exec common.ExecInterface, cmdQuery string) (bytes.Buffer, error)
-	RunScpCmd(exec common.ExecInterface, fileName string) (bytes.Buffer, error)
+
+	// if role is DEST, copy file from container to this node
+	// if role is SRC, copy file from this node to container
+	RunScpCmd(exec common.ExecInterface, srcFile, destFile string, role Role) (bytes.Buffer, error)
 }
 
 type Node struct {
@@ -98,9 +101,8 @@ func (n *Node) RunSshCmd(exec common.ExecInterface, cmdQuery string) (bytes.Buff
 	return resultStdout, nil
 }
 
-// executing commands: sshpass -f <(printf '%s\n' userPw) scp -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null fileName userId@ipAddr:~/fileName
 // TODO: replace sshpass command to go ssh pkg
-func (n *Node) RunScpCmd(exec common.ExecInterface, fileName string) (bytes.Buffer, error) {
+func (n *Node) RunScpCmd(exec common.ExecInterface, srcFile, destFile string, role Role) (bytes.Buffer, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), SshCmdTimeout)
 	defer cancel()
 
@@ -123,7 +125,18 @@ func (n *Node) RunScpCmd(exec common.ExecInterface, fileName string) (bytes.Buff
 	}
 
 	const sshKeyCheckOpt = "-oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null"
-	scpCmd := fmt.Sprintf("sshpass -f <(printf '%%s\\n' %[1]s) scp %[2]s %[3]s %[4]s@%[5]s:~/%[3]s", userPw, sshKeyCheckOpt, fileName, userId, ipAddr)
+
+	var scpCmd string
+	// provisioner sends srcFile to this node as destFile
+	if role == DEST {
+		scpCmd = fmt.Sprintf("sshpass -f <(printf '%%s\\n' %[1]s) scp %[2]s %[3]s %[4]s@%[5]s:%[6]s",
+			userPw, sshKeyCheckOpt, srcFile, userId, ipAddr, destFile)
+
+		// this node sends srcFile to provisioner as destFile
+	} else {
+		scpCmd = fmt.Sprintf("sshpass -f <(printf '%%s\\n' %[1]s) scp %[2]s %[4]s@%[5]s:%[3]s %[6]s",
+			userPw, sshKeyCheckOpt, srcFile, userId, ipAddr, destFile)
+	}
 
 	parameters := []string{"-c"}
 	parameters = append(parameters, scpCmd)

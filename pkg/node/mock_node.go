@@ -137,16 +137,16 @@ func (mr *MockNodeInterfaceMockRecorder) RunSshCmd(exec, cmdQuery interface{}) *
 }
 
 // RunScpCmd mocks base method
-func (m *MockNodeInterface) RunScpCmd(exec wrapper.ExecInterface, fileName string) (bytes.Buffer, error) {
+func (m *MockNodeInterface) RunScpCmd(exec wrapper.ExecInterface, srcFile, destFile string, role Role) (bytes.Buffer, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RunScpCmd", exec, fileName)
+	ret := m.ctrl.Call(m, "RunScpCmd", exec, srcFile, destFile, role)
 	ret0, _ := ret[0].(bytes.Buffer)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // RunScpCmd indicates an expected call of RunScpCmd
-func (mr *MockNodeInterfaceMockRecorder) RunScpCmd(exec, fileName interface{}) *gomock.Call {
+func (mr *MockNodeInterfaceMockRecorder) RunScpCmd(exec, srcFile, destFile, role interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RunScpCmd", reflect.TypeOf((*MockNodeInterface)(nil).RunScpCmd), exec, fileName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RunScpCmd", reflect.TypeOf((*MockNodeInterface)(nil).RunScpCmd), exec, srcFile, destFile, role)
 }

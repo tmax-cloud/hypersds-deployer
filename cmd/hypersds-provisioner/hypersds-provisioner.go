@@ -1,6 +1,7 @@
 package provisioner
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 
@@ -13,10 +14,11 @@ import (
 )
 
 const (
-	pathCephConf   = "./ceph_initial.conf"
-	defaultCephDir = "/etc/ceph"
-	confFile       = "ceph.conf"
-	keyringFile    = "ceph.client.admin.keyring"
+	pathConfFromCr      = "/ceph_initial.conf"
+	pathConfFromAdm     = "/etc/ceph/ceph.conf"
+	pathKeyringFromAdm  = "/etc/ceph/ceph.client.admin.keyring"
+	pathConfToUpdate    = "/ceph_to_update.conf"
+	pathKeyringToUpdate = "/ceph_to_update.keyring"
 )
 
 var (
@@ -46,7 +48,7 @@ func Install() error {
 		return err
 	}
 
-	err = cephConfig.MakeIniFile(common.IoUtilWrapper, pathCephConf)
+	err = cephConfig.MakeIniFile(common.IoUtilWrapper, pathConfFromCr)
 	if err != nil {
 		return err
 	}
@@ -71,25 +73,30 @@ func Install() error {
 		return err
 	}
 
-	// 7. Update conf and keyring to ConfigMap and Secret
-	err = updateCephClusterToOp()
+	// 7. Copy conf and keyring from deploy node
+	err = copyFile(deployNode, node.SRC, pathConfFromAdm, pathConfToUpdate)
+	if err != nil {
+		return err
+	}
+	err = copyFile(deployNode, node.SRC, pathKeyringFromAdm, pathKeyringToUpdate)
 	if err != nil {
 		return err
 	}
 
-	return nil
+	// 8. Update conf and keyring to ConfigMap and Secret
+	err = updateCephClusterToOp()
+
+	return err
 }
 
 func updateCephClusterToOp() error {
-	fmt.Println("----------------Start to Update ceph.conf And keyring To Operator---------------")
-	const cpath = defaultCephDir + "/" + confFile
-	err = cephConfig.ConfigFromAdm(common.IoUtilWrapper, cpath)
+	fmt.Println("----------------Start to update conf and keyring to operator---------------")
+	err = cephConfig.ConfigFromAdm(common.IoUtilWrapper, pathConfToUpdate)
 	if err != nil {
 		return err
 	}
 
-	const kpath = defaultCephDir + "/" + keyringFile
-	err = cephConfig.SecretFromAdm(common.IoUtilWrapper, kpath)
+	err = cephConfig.SecretFromAdm(common.IoUtilWrapper, pathKeyringToUpdate)
 	if err != nil {
 		return err
 	}
@@ -100,9 +107,6 @@ func updateCephClusterToOp() error {
 	}
 
 	err = cephConfig.UpdateKeyringToK8s(common.KubeWrapper)
-	if err != nil {
-		return err
-	}
 
 	return err
 }
@@ -110,7 +114,7 @@ func updateCephClusterToOp() error {
 func bootstrapCephadm(targetNode node.NodeInterface) error {
 	fmt.Println("----------------Start to bootstrap ceph---------------")
 
-	err = copyFileOnNode(targetNode, pathCephConf)
+	err = copyFile(targetNode, node.DEST, pathConfFromCr, pathConfFromCr)
 	if err != nil {
 		return err
 	}
@@ -125,7 +129,7 @@ func bootstrapCephadm(targetNode node.NodeInterface) error {
 		return err
 	}
 
-	admBootstrapCmd := fmt.Sprintf("cephadm bootstrap --mon-ip %s --config %s", monIp, pathCephConf)
+	admBootstrapCmd := fmt.Sprintf("cephadm bootstrap --mon-ip %s --config %s", monIp, pathConfFromCr)
 
 	err = processCmdOnNode(targetNode, admBootstrapCmd)
 
@@ -244,55 +248,36 @@ func installBasePackage(targetNodeList []node.NodeInterface) error {
 }
 
 func processCmdOnNode(targetNode node.NodeInterface, command string) error {
-	output, errRunSshCmd := targetNode.RunSshCmd(common.ExecWrapper, command)
-	if errRunSshCmd != nil {
-		// case that RunSshCmd failed SSH and successed to return the stderr result
-		if output.Bytes() != nil {
-			_, errOsStderr := output.WriteTo(os.Stderr)
-			if errOsStderr != nil {
-				return errOsStderr
-			} else {
-				return errRunSshCmd
-			}
-
-			// case that RunSshCmd failed before calling SSH
-		} else {
-			return errRunSshCmd
-		}
-
-		// case that RunSshCmd succeeded SSH
-	} else {
-		_, errOsStdout := output.WriteTo(os.Stdout)
-		if errOsStdout != nil {
-			return errOsStdout
-		} else {
-			return nil
-		}
-	}
+	output, err := targetNode.RunSshCmd(common.ExecWrapper, command)
+	return processExecError(err, output)
 }
 
-func copyFileOnNode(targetNode node.NodeInterface, fileName string) error {
-	output, errRunScpCmd := targetNode.RunScpCmd(common.ExecWrapper, fileName)
-	if errRunScpCmd != nil {
+func copyFile(targetNode node.NodeInterface, role node.Role, srcFile, destFile string) error {
+	output, err := targetNode.RunScpCmd(common.ExecWrapper, srcFile, destFile, role)
+	return processExecError(err, output)
+}
+
+func processExecError(errExec error, output bytes.Buffer) error {
+	if errExec != nil {
 		// case that RunScpCmd failed SSH and successed to return the stderr result
 		if output.Bytes() != nil {
-			_, errOsStderr := output.WriteTo(os.Stderr)
-			if errOsStderr != nil {
-				return errOsStderr
+			_, err := output.WriteTo(os.Stderr)
+			if err != nil {
+				return err
 			} else {
-				return errRunScpCmd
+				return errExec
 			}
 
 			// case that RunScpCmd failed before calling SSH
 		} else {
-			return errRunScpCmd
+			return errExec
 		}
 
 		// case that RunScpCmd succeeded SSH
 	} else {
-		_, errOsStdout := output.WriteTo(os.Stdout)
-		if errOsStdout != nil {
-			return errOsStdout
+		_, err := output.WriteTo(os.Stdout)
+		if err != nil {
+			return err
 		} else {
 			return nil
 		}
