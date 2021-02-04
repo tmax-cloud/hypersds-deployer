@@ -2,6 +2,7 @@ package main
 
 import (
 	provisioner "hypersds-provisioner/cmd/hypersds-provisioner"
+	"os"
 )
 
 func main() {
@@ -9,4 +10,5 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	os.Exit(0)
 }

@@ -13,7 +13,10 @@ import (
 )
 
 const (
-	pathCephConf = "./ceph_initial.conf"
+	pathCephConf   = "./ceph_initial.conf"
+	defaultCephDir = "/etc/ceph"
+	confFile       = "ceph.conf"
+	keyringFile    = "ceph.client.admin.keyring"
 )
 
 var (
@@ -69,8 +72,39 @@ func Install() error {
 	}
 
 	// 7. Update conf and keyring to ConfigMap and Secret
+	err = updateCephClusterToOp()
+	if err != nil {
+		return err
+	}
 
 	return nil
+}
+
+func updateCephClusterToOp() error {
+	fmt.Println("----------------Start to Update ceph.conf And keyring To Operator---------------")
+	const cpath = defaultCephDir + "/" + confFile
+	err = cephConfig.ConfigFromAdm(common.IoUtilWrapper, cpath)
+	if err != nil {
+		return err
+	}
+
+	const kpath = defaultCephDir + "/" + keyringFile
+	err = cephConfig.SecretFromAdm(common.IoUtilWrapper, kpath)
+	if err != nil {
+		return err
+	}
+
+	err = cephConfig.UpdateConfToK8s(common.KubeWrapper)
+	if err != nil {
+		return err
+	}
+
+	err = cephConfig.UpdateKeyringToK8s(common.KubeWrapper)
+	if err != nil {
+		return err
+	}
+
+	return err
 }
 
 func bootstrapCephadm(targetNode node.NodeInterface) error {
