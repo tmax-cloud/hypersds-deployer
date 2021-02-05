@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	FilePathPrefix = "/root/"
+	FilePathPrefix = "/manifest/"
 	CephCrYamlName = "cluster.yaml"
 )
 
