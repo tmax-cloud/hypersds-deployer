@@ -15,8 +15,8 @@ import (
 const (
 	ProvisonerTimeout         = 30 * time.Minute
 	InputDir                  = "example" //temp directory
-	ProvisonerImage           = "hypersds-provisoner:canary"
-	ProvisonerName            = "hypersds-provisoner"
+	ProvisonerImage           = "hypersds-provisioner:canary"
+	ProvisonerName            = "hypersds-provisioner"
 	ProvisonerVolumeName      = "config-volume"
 	ProvisonerVolumeMountPath = "/manifest"
 	ProvisonerNamespace       = "default"
