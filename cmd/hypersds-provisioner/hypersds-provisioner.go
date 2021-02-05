@@ -14,11 +14,12 @@ import (
 )
 
 const (
-	pathConfFromCr      = "/ceph_initial.conf"
-	pathConfFromAdm     = "/etc/ceph/ceph.conf"
-	pathKeyringFromAdm  = "/etc/ceph/ceph.client.admin.keyring"
-	pathConfToUpdate    = "/ceph_to_update.conf"
-	pathKeyringToUpdate = "/ceph_to_update.keyring"
+	pathConfigWorkingDir = "/working/config/"
+	cephConfNameFromCr   = "ceph_initial.conf"
+	pathConfFromAdm      = "/etc/ceph/ceph.conf"
+	pathKeyringFromAdm   = "/etc/ceph/ceph.client.admin.keyring"
+	cephConfToUpdate     = "conf_to_update.conf"
+	cephKeyringToUpdate  = "keyring_to_update.keyring"
 )
 
 var (
@@ -48,6 +49,7 @@ func Install() error {
 		return err
 	}
 
+	const pathConfFromCr = pathConfigWorkingDir + cephConfNameFromCr
 	err = cephConfig.MakeIniFile(common.IoUtilWrapper, pathConfFromCr)
 	if err != nil {
 		return err
@@ -74,11 +76,13 @@ func Install() error {
 	}
 
 	// 7. Copy conf and keyring from deploy node
-	err = copyFile(deployNode, node.SRC, pathConfFromAdm, pathConfToUpdate)
+	const pathConfToUpdate = pathConfigWorkingDir + cephConfToUpdate
+	err = copyFile(deployNode, node.SOURCE, pathConfFromAdm, pathConfToUpdate)
 	if err != nil {
 		return err
 	}
-	err = copyFile(deployNode, node.SRC, pathKeyringFromAdm, pathKeyringToUpdate)
+	const pathKeyringToUpdate = pathConfigWorkingDir + cephKeyringToUpdate
+	err = copyFile(deployNode, node.SOURCE, pathKeyringFromAdm, pathKeyringToUpdate)
 	if err != nil {
 		return err
 	}
@@ -91,11 +95,14 @@ func Install() error {
 
 func updateCephClusterToOp() error {
 	fmt.Println("----------------Start to update conf and keyring to operator---------------")
+
+	const pathConfToUpdate = pathConfigWorkingDir + cephConfToUpdate
 	err = cephConfig.ConfigFromAdm(common.IoUtilWrapper, pathConfToUpdate)
 	if err != nil {
 		return err
 	}
 
+	const pathKeyringToUpdate = pathConfigWorkingDir + cephKeyringToUpdate
 	err = cephConfig.SecretFromAdm(common.IoUtilWrapper, pathKeyringToUpdate)
 	if err != nil {
 		return err
@@ -114,7 +121,8 @@ func updateCephClusterToOp() error {
 func bootstrapCephadm(targetNode node.NodeInterface) error {
 	fmt.Println("----------------Start to bootstrap ceph---------------")
 
-	err = copyFile(targetNode, node.DEST, pathConfFromCr, pathConfFromCr)
+	const pathConfFromCr = pathConfigWorkingDir + cephConfNameFromCr
+	err = copyFile(targetNode, node.DESTINATION, pathConfFromCr, cephConfNameFromCr)
 	if err != nil {
 		return err
 	}

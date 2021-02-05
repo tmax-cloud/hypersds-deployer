@@ -12,6 +12,6 @@ const (
 type Role int
 
 const (
-	SRC Role = iota
-	DEST
+	SOURCE Role = iota
+	DESTINATION
 )
