@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	pathConfigWorkingDir = "/working/config/"
+	pathConfigWorkingDir = "/"
 	cephConfNameFromCr   = "ceph_initial.conf"
 	pathConfFromAdm      = "/etc/ceph/ceph.conf"
 	pathKeyringFromAdm   = "/etc/ceph/ceph.client.admin.keyring"
@@ -121,6 +121,7 @@ func updateCephClusterToOp() error {
 func bootstrapCephadm(targetNode node.NodeInterface) error {
 	fmt.Println("----------------Start to bootstrap ceph---------------")
 
+	fmt.Println("[bootstrapCephadm] copying conf file")
 	const pathConfFromCr = pathConfigWorkingDir + cephConfNameFromCr
 	err = copyFile(targetNode, node.DESTINATION, pathConfFromCr, cephConfNameFromCr)
 	if err != nil {
@@ -137,6 +138,7 @@ func bootstrapCephadm(targetNode node.NodeInterface) error {
 		return err
 	}
 
+	fmt.Println("[bootstrapCephadm] executing bootstrap")
 	admBootstrapCmd := fmt.Sprintf("cephadm bootstrap --mon-ip %s --config %s", monIp, pathConfFromCr)
 
 	err = processCmdOnNode(targetNode, admBootstrapCmd)
@@ -148,12 +150,14 @@ func installCephadm(targetNode node.NodeInterface) error {
 	fmt.Println("----------------Start to install cephadm---------------")
 
 	// TODO: Specify release version
+	fmt.Println("[installCephadm] executing curl cephadm")
 	curlCephadmCmd := "curl --silent --remote-name --location https://github.com/ceph/ceph/raw/octopus/src/cephadm/cephadm"
 	err = processCmdOnNode(targetNode, curlCephadmCmd)
 	if err != nil {
 		return err
 	}
 
+	fmt.Println("[installCephadm] executing chmod")
 	const chmodCmd = "chmod +x cephadm"
 	err = processCmdOnNode(targetNode, chmodCmd)
 	if err != nil {
@@ -161,6 +165,7 @@ func installCephadm(targetNode node.NodeInterface) error {
 	}
 
 	// TODO: Specify release version
+	fmt.Println("[installCephadm] executing cephadm add-repo")
 	admAddRepoCmd := "./cephadm add-repo --release octopus"
 	err = processCmdOnNode(targetNode, admAddRepoCmd)
 	if err != nil {
@@ -168,24 +173,28 @@ func installCephadm(targetNode node.NodeInterface) error {
 	}
 
 	// does something in command need to be changed, related to cephadm version?
+	fmt.Println("[installCephadm] executing curl cephadm gpg key")
 	addCephadmRepoCmd := "curl https://download.ceph.com/keys/release.asc | gpg --no-default-keyring --keyring /tmp/fix.gpg --import - && gpg --no-default-keyring --keyring /tmp/fix.gpg --export > /etc/apt/trusted.gpg.d/ceph.release.gpg && rm /tmp/fix.gpg"
 	err = processCmdOnNode(targetNode, addCephadmRepoCmd)
 	if err != nil {
 		return err
 	}
 
+	fmt.Println("[installCephadm] executing cephadm apt-get update")
 	const aptUpdateCmd = "apt-get update"
 	err = processCmdOnNode(targetNode, aptUpdateCmd)
 	if err != nil {
 		return err
 	}
 
+	fmt.Println("[installCephadm] executing cephadm install")
 	const admInstallCmd = "./cephadm install"
 	err = processCmdOnNode(targetNode, admInstallCmd)
 	if err != nil {
 		return err
 	}
 
+	fmt.Println("[installCephadm] executing mkdir")
 	const mkdirCmd = "mkdir /etc/ceph"
 	err = processCmdOnNode(targetNode, mkdirCmd)
 
@@ -195,6 +204,7 @@ func installCephadm(targetNode node.NodeInterface) error {
 func installBasePackage(targetNodeList []node.NodeInterface) error {
 	fmt.Println("----------------Start to install base package---------------")
 
+	fmt.Println("[installBasePackage] executing apt-get update")
 	const aptUpdateCmd = "apt-get update"
 	for _, n := range targetNodeList {
 		err = processCmdOnNode(n, aptUpdateCmd)
@@ -204,6 +214,7 @@ func installBasePackage(targetNodeList []node.NodeInterface) error {
 	}
 
 	// use standard verison in OS
+	fmt.Println("[installBasePackage] executing apt-get install ...")
 	const installPkgCmd = "apt-get install -y apt-transport-https ca-certificates curl software-properties-common ntpdate chrony"
 	for _, n := range targetNodeList {
 		err = processCmdOnNode(n, installPkgCmd)
@@ -212,6 +223,7 @@ func installBasePackage(targetNodeList []node.NodeInterface) error {
 		}
 	}
 
+	fmt.Println("[installBasePackage] executing curl docker ...")
 	const addDockerGpgKeyCmd = "curl -s https://download.docker.com/linux/ubuntu/gpg | apt-key add - &>/dev/null"
 	for _, n := range targetNodeList {
 		err = processCmdOnNode(n, addDockerGpgKeyCmd)
@@ -220,6 +232,7 @@ func installBasePackage(targetNodeList []node.NodeInterface) error {
 		}
 	}
 
+	fmt.Println("[installBasePackage] executing add-apt-repo docker ...")
 	const addDockerRepoCmd = `add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"`
 	for _, n := range targetNodeList {
 		err = processCmdOnNode(n, addDockerRepoCmd)
@@ -228,6 +241,7 @@ func installBasePackage(targetNodeList []node.NodeInterface) error {
 		}
 	}
 
+	fmt.Println("[installBasePackage] executing apt-get install docker-ce")
 	const installDockerCmd = "apt-get update && apt-get -y install docker-ce"
 	for _, n := range targetNodeList {
 		err = processCmdOnNode(n, installDockerCmd)
@@ -236,6 +250,7 @@ func installBasePackage(targetNodeList []node.NodeInterface) error {
 		}
 	}
 
+	fmt.Println("[installBasePackage] executing sysctl docker")
 	const restartDockerCmd = "systemctl restart docker"
 	for _, n := range targetNodeList {
 		err = processCmdOnNode(n, restartDockerCmd)
@@ -244,6 +259,7 @@ func installBasePackage(targetNodeList []node.NodeInterface) error {
 		}
 	}
 
+	fmt.Println("[installBasePackage] executing ntpdate")
 	const setNtpCmd = "ntpdate -u time.google.com"
 	for _, n := range targetNodeList {
 		err = processCmdOnNode(n, setNtpCmd)
@@ -269,10 +285,34 @@ func processExecError(errExec error, output bytes.Buffer) error {
 	if errExec != nil {
 		// case that RunScpCmd failed SSH and successed to return the stderr result
 		if output.Bytes() != nil {
-			_, err := output.WriteTo(os.Stderr)
+            //////////
+            bufString := bytes.NewBufferString("\n------ stderr start--------\n")
+            _, err := bufString.Write(output.Bytes())
+            if err != nil {
+                fmt.Println("added error, stderr shit1")
+                return err
+            } else {
+                fmt.Println("added error, stderr shit2")
+                return errExec
+            }
+
+            _, err = bufString.WriteString("\n------ stderr done--------")
+            if err != nil {
+                fmt.Println("added error, shit3")
+                return err
+            } else {
+                fmt.Println("added error, shit4")
+                return errExec
+            }
+            //////////
+
+			//_, err := output.WriteTo(os.Stderr)
+			_, err = bufString.WriteTo(os.Stderr)
 			if err != nil {
+                fmt.Println("added error, shit5")
 				return err
 			} else {
+                fmt.Println("added error, shit6")
 				return errExec
 			}
 
@@ -283,10 +323,28 @@ func processExecError(errExec error, output bytes.Buffer) error {
 
 		// case that RunScpCmd succeeded SSH
 	} else {
-		_, err := output.WriteTo(os.Stdout)
+        //////////
+        bufString := bytes.NewBufferString("\n------ stdout start--------\n")
+        numWrt, err := bufString.Write(output.Bytes())
+        fmt.Println("written bytes: ", numWrt)
+        if err != nil {
+            fmt.Println("added error, shit3")
+            return err
+        }
+        _, err = bufString.WriteString("\n------ stdout done--------\n")
+        if err != nil {
+            fmt.Println("added error, shit4")
+            return err
+        }
+        //////////
+
+		//_, err := output.WriteTo(os.Stdout)
+		_, err = bufString.WriteTo(os.Stdout)
 		if err != nil {
+            fmt.Println("added error, shit5")
 			return err
 		} else {
+            fmt.Println("added error, shit6")
 			return nil
 		}
 	}

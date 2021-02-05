@@ -1,5 +1,5 @@
 mon:
-  count: 1
+  count: 3
 osd:
 - hostname: master1
   devices:
