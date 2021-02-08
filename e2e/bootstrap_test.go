@@ -5,6 +5,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/client-go/kubernetes"
@@ -19,8 +20,13 @@ import (
 )
 
 const (
-	cephConfName    = "ceph-conf"
-	cephKeyringName = "ceph-secret"
+	cephConfName        = "ceph-conf"
+	cephKeyringName     = "ceph-secret"
+	cephRoleName        = "ceph-role"
+	cephRoleBindingName = "ceph-rolebinding"
+	// TODO: change to own SA and NS
+	cephServiceAccountName = "default"
+	cephNamespace          = "default"
 )
 
 var _ = Describe("Bootstrap Test", func() {
@@ -29,6 +35,7 @@ var _ = Describe("Bootstrap Test", func() {
 	var (
 		err       error
 		clientSet *kubernetes.Clientset
+		nodeName  string // required in multinode k8s environment
 	)
 
 	BeforeEach(func() {
@@ -52,11 +59,12 @@ var _ = Describe("Bootstrap Test", func() {
 				APIVersion: "v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name: cephConfName,
+				Name:      cephConfName,
+				Namespace: cephNamespace,
 			},
 		}
 
-		createdCm, err := clientSet.CoreV1().ConfigMaps("default").Create(context.TODO(), &cephConfCm, metav1.CreateOptions{})
+		createdCm, err := clientSet.CoreV1().ConfigMaps(cephNamespace).Create(context.TODO(), &cephConfCm, metav1.CreateOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		fmt.Println("return type:", reflect.TypeOf(createdCm))
 
@@ -68,44 +76,110 @@ var _ = Describe("Bootstrap Test", func() {
 				APIVersion: "v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name: cephKeyringName,
+				Name:      cephKeyringName,
+				Namespace: cephNamespace,
 			},
 		}
 
-		createdSecret, err := clientSet.CoreV1().Secrets("default").Create(context.TODO(), &cephKeyringSecret, metav1.CreateOptions{})
+		createdSecret, err := clientSet.CoreV1().Secrets(cephNamespace).Create(context.TODO(), &cephKeyringSecret, metav1.CreateOptions{})
 		Expect(err).NotTo(HaveOccurred())
-		fmt.Println("return type:", reflect.TypeOf(createdSecret))
 
+		fmt.Println("return type:", reflect.TypeOf(createdSecret))
 		fmt.Println("secret result: ", createdSecret)
+
+		provisionerRole := rbacv1.Role{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Role",
+				APIVersion: "rbac.authorization.k8s.io/v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      cephRoleName,
+				Namespace: cephNamespace,
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"get", "update"},
+					APIGroups: []string{""},
+					Resources: []string{"configmaps", "secrets"},
+				},
+			},
+		}
+
+		createdRole, err := clientSet.RbacV1().Roles(cephNamespace).Create(context.TODO(), &provisionerRole, metav1.CreateOptions{})
+		Expect(err).NotTo(HaveOccurred())
+
+		fmt.Println("return type:", reflect.TypeOf(createdRole))
+		fmt.Println("secret result: ", createdRole)
+
+		provisionerRoleBinding := rbacv1.RoleBinding{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "RoleBinding",
+				APIVersion: "rbac.authorization.k8s.io/v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      cephRoleBindingName,
+				Namespace: cephNamespace,
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      cephServiceAccountName,
+					Namespace: cephNamespace,
+				},
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: "rbac.authorization.k8s.io",
+				Kind:     "Role",
+				Name:     cephRoleName,
+			},
+		}
+
+		createdRoleBinding, err := clientSet.RbacV1().RoleBindings(cephNamespace).Create(context.TODO(), &provisionerRoleBinding, metav1.CreateOptions{})
+		Expect(err).NotTo(HaveOccurred())
+
+		fmt.Println("return type:", reflect.TypeOf(createdRoleBinding))
+		fmt.Println("secret result: ", createdRoleBinding)
 	})
 
 	AfterEach(func() {
 		deletePolicy := metav1.DeletePropagationForeground
-		err = clientSet.CoreV1().ConfigMaps("default").Delete(context.TODO(), cephConfName, metav1.DeleteOptions{
+		err = clientSet.CoreV1().ConfigMaps(cephNamespace).Delete(context.TODO(), cephConfName, metav1.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
 		})
 		Expect(err).NotTo(HaveOccurred())
 
-		err = clientSet.CoreV1().Secrets("default").Delete(context.TODO(), cephKeyringName, metav1.DeleteOptions{
+		err = clientSet.CoreV1().Secrets(cephNamespace).Delete(context.TODO(), cephKeyringName, metav1.DeleteOptions{
+			PropagationPolicy: &deletePolicy,
+		})
+		Expect(err).NotTo(HaveOccurred())
+
+		err = clientSet.RbacV1().Roles(cephNamespace).Delete(context.TODO(), cephRoleName, metav1.DeleteOptions{
+			PropagationPolicy: &deletePolicy,
+		})
+		Expect(err).NotTo(HaveOccurred())
+
+		err = clientSet.RbacV1().RoleBindings(cephNamespace).Delete(context.TODO(), cephRoleBindingName, metav1.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
 		})
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("is simple e2e test case", func() {
-		err = runProvisionerContainer(clientSet, "master1")
+		// XXX: Change it as one's environment
+		nodeName = "master1"
+		err = runProvisionerContainer(clientSet, nodeName)
 
 		// Check bootstrap successfully completed
 		Expect(err).NotTo(HaveOccurred())
 
 		// Check ConfigMap and Secret are successfully updated
-		cephConfCm, err := clientSet.CoreV1().ConfigMaps("default").Get(context.TODO(), cephConfName, metav1.GetOptions{})
+		cephConfCm, err := clientSet.CoreV1().ConfigMaps(cephNamespace).Get(context.TODO(), cephConfName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 
 		cmData := cephConfCm.Data
 		Expect(cmData).NotTo(BeEmpty())
 
-		cephKeyringSecret, err := clientSet.CoreV1().Secrets("default").Get(context.TODO(), cephKeyringName, metav1.GetOptions{})
+		cephKeyringSecret, err := clientSet.CoreV1().Secrets(cephNamespace).Get(context.TODO(), cephKeyringName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 
 		secretData := cephKeyringSecret.Data

@@ -14,7 +14,7 @@ import (
 
 const (
 	ProvisonerTimeout         = 30 * time.Minute
-	InputDir                  = "example" //temp directory
+	InputDir                  = "example" // directory to use in test. required.
 	ProvisonerImage           = "hypersds-provisioner:canary"
 	ProvisonerName            = "hypersds-provisioner"
 	ProvisonerVolumeName      = "config-volume"

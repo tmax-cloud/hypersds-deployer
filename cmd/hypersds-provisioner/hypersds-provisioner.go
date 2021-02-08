@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	pathConfigWorkingDir = "/"
+	pathConfigWorkingDir = "/working/config/"
 	cephConfNameFromCr   = "ceph_initial.conf"
 	pathConfFromAdm      = "/etc/ceph/ceph.conf"
 	pathKeyringFromAdm   = "/etc/ceph/ceph.client.admin.keyring"
@@ -94,7 +94,7 @@ func Install() error {
 }
 
 func updateCephClusterToOp() error {
-	fmt.Println("----------------Start to update conf and keyring to operator---------------")
+	fmt.Println("\n----------------Start to update conf and keyring to operator---------------")
 
 	const pathConfToUpdate = pathConfigWorkingDir + cephConfToUpdate
 	err = cephConfig.ConfigFromAdm(common.IoUtilWrapper, pathConfToUpdate)
@@ -119,11 +119,11 @@ func updateCephClusterToOp() error {
 }
 
 func bootstrapCephadm(targetNode node.NodeInterface) error {
-	fmt.Println("----------------Start to bootstrap ceph---------------")
+	fmt.Println("\n----------------Start to bootstrap ceph---------------")
 
 	fmt.Println("[bootstrapCephadm] copying conf file")
-	const pathConfFromCr = pathConfigWorkingDir + cephConfNameFromCr
-	err = copyFile(targetNode, node.DESTINATION, pathConfFromCr, cephConfNameFromCr)
+	const pathConf = pathConfigWorkingDir + cephConfNameFromCr
+	err = copyFile(targetNode, node.DESTINATION, pathConf, pathConf)
 	if err != nil {
 		return err
 	}
@@ -139,15 +139,21 @@ func bootstrapCephadm(targetNode node.NodeInterface) error {
 	}
 
 	fmt.Println("[bootstrapCephadm] executing bootstrap")
-	admBootstrapCmd := fmt.Sprintf("cephadm bootstrap --mon-ip %s --config %s", monIp, pathConfFromCr)
-
+	admBootstrapCmd := fmt.Sprintf("cephadm bootstrap --mon-ip %s --config %s", monIp, pathConf)
 	err = processCmdOnNode(targetNode, admBootstrapCmd)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("[bootstrapCephadm] checking status")
+	const admHealthCheckCmd = "cephadm shell -- ceph -s"
+	err = processCmdOnNode(targetNode, admHealthCheckCmd)
 
 	return err
 }
 
 func installCephadm(targetNode node.NodeInterface) error {
-	fmt.Println("----------------Start to install cephadm---------------")
+	fmt.Println("\n----------------Start to install cephadm---------------")
 
 	// TODO: Specify release version
 	fmt.Println("[installCephadm] executing curl cephadm")
@@ -202,7 +208,7 @@ func installCephadm(targetNode node.NodeInterface) error {
 }
 
 func installBasePackage(targetNodeList []node.NodeInterface) error {
-	fmt.Println("----------------Start to install base package---------------")
+	fmt.Println("\n----------------Start to install base package---------------")
 
 	fmt.Println("[installBasePackage] executing apt-get update")
 	const aptUpdateCmd = "apt-get update"
@@ -283,69 +289,17 @@ func copyFile(targetNode node.NodeInterface, role node.Role, srcFile, destFile s
 
 func processExecError(errExec error, output bytes.Buffer) error {
 	if errExec != nil {
-		// case that RunScpCmd failed SSH and successed to return the stderr result
 		if output.Bytes() != nil {
-            //////////
-            bufString := bytes.NewBufferString("\n------ stderr start--------\n")
-            _, err := bufString.Write(output.Bytes())
-            if err != nil {
-                fmt.Println("added error, stderr shit1")
-                return err
-            } else {
-                fmt.Println("added error, stderr shit2")
-                return errExec
-            }
-
-            _, err = bufString.WriteString("\n------ stderr done--------")
-            if err != nil {
-                fmt.Println("added error, shit3")
-                return err
-            } else {
-                fmt.Println("added error, shit4")
-                return errExec
-            }
-            //////////
-
-			//_, err := output.WriteTo(os.Stderr)
-			_, err = bufString.WriteTo(os.Stderr)
+			_, err := output.WriteTo(os.Stderr)
 			if err != nil {
-                fmt.Println("added error, shit5")
+				// TODO: combine errExec and err
 				return err
-			} else {
-                fmt.Println("added error, shit6")
-				return errExec
 			}
-
-			// case that RunScpCmd failed before calling SSH
-		} else {
-			return errExec
 		}
-
-		// case that RunScpCmd succeeded SSH
+		return errExec
 	} else {
-        //////////
-        bufString := bytes.NewBufferString("\n------ stdout start--------\n")
-        numWrt, err := bufString.Write(output.Bytes())
-        fmt.Println("written bytes: ", numWrt)
-        if err != nil {
-            fmt.Println("added error, shit3")
-            return err
-        }
-        _, err = bufString.WriteString("\n------ stdout done--------\n")
-        if err != nil {
-            fmt.Println("added error, shit4")
-            return err
-        }
-        //////////
+		_, err := output.WriteTo(os.Stdout)
 
-		//_, err := output.WriteTo(os.Stdout)
-		_, err = bufString.WriteTo(os.Stdout)
-		if err != nil {
-            fmt.Println("added error, shit5")
-			return err
-		} else {
-            fmt.Println("added error, shit6")
-			return nil
-		}
+		return err
 	}
 }
