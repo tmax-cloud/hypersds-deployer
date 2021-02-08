@@ -16,6 +16,8 @@ RUN apt-get purge -y wget software-properties-common lsb-release &&\
 apt-get autoremove -y &&\
 rm -rf /var/lib/apt/lists/*
 
+RUN mkdir -p /working/config/
+
 WORKDIR /usr/bin/
 ADD hypersds-provisioner .
 ENTRYPOINT ["hypersds-provisioner"]
