@@ -7,8 +7,13 @@ import (
 	"strings"
 
 	hypersdsv1alpha1 "github.com/tmax-cloud/hypersds-operator/api/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+const (
+	K8sNamespace = "default"
+	k8sConfigMap = "ceph-conf"
+	K8sSecret    = "ceph-secret"
 )
 
 type CephConfigInterface interface {
@@ -133,22 +138,14 @@ func (conf *CephConfig) UpdateConfToK8s(kubeWrapper wrapper.KubeInterface) error
 		panic(err)
 	}
 
-	admConf, _ := conf.GetAdmConf()
-	configMap := corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ConfigMap",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "ceph-conf",
-		},
-		Data: admConf,
-	}
-	_, err = clientset.CoreV1().ConfigMaps("default").Get(context.TODO(), "ceph-conf", metav1.GetOptions{})
+	configMap, err := clientset.CoreV1().ConfigMaps(K8sNamespace).Get(context.TODO(), k8sConfigMap, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
-	_, err = clientset.CoreV1().ConfigMaps("default").Update(context.TODO(), &configMap, metav1.UpdateOptions{})
+
+	admConf, _ := conf.GetAdmConf()
+	configMap.Data = admConf
+	_, err = clientset.CoreV1().ConfigMaps(K8sNamespace).Update(context.TODO(), configMap, metav1.UpdateOptions{})
 	return err
 }
 
@@ -164,22 +161,13 @@ func (conf *CephConfig) UpdateKeyringToK8s(kubeWrapper wrapper.KubeInterface) er
 		return err
 	}
 
-	admSecret, _ := conf.GetAdmSecret()
-	secret := corev1.Secret{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Secret",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "ceph-secret",
-		},
-		Data: admSecret,
-	}
-
-	_, err = clientset.CoreV1().Secrets("default").Get(context.TODO(), "ceph-secret", metav1.GetOptions{})
+	secret, err := clientset.CoreV1().Secrets(K8sNamespace).Get(context.TODO(), K8sSecret, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
-	_, err = clientset.CoreV1().Secrets("default").Update(context.TODO(), &secret, metav1.UpdateOptions{})
+
+	admSecret, _ := conf.GetAdmSecret()
+	secret.Data = admSecret
+	_, err = clientset.CoreV1().Secrets(K8sNamespace).Update(context.TODO(), secret, metav1.UpdateOptions{})
 	return err
 }
