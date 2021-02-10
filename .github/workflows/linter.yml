@@ -3,8 +3,8 @@ on: [pull_request]
 jobs:
   linter:
     name: Run Linter Check
-    runs-on: ubuntu-18.04
-    timeout-minutes: 3
+    runs-on: self-hosted
+    timeout-minutes: 10
     steps:
     - name: Check out the code
       uses: actions/checkout@v2
