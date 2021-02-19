@@ -19,5 +19,5 @@ rm -rf /var/lib/apt/lists/*
 RUN mkdir -p /working/config/
 
 WORKDIR /usr/bin/
-ADD hypersds-provisioner .
+ADD build/hypersds-provisioner .
 ENTRYPOINT ["hypersds-provisioner"]
