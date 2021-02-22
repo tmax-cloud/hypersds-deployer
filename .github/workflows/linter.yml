@@ -2,8 +2,12 @@ name: Pull Request Linter Check
 on: [pull_request]
 jobs:
   linter:
+    if: "! contains(github.event.pull_request.body, '[skip-ci]')"
+    strategy:
+      matrix:
+        os: [ubuntu-18.04]
     name: Run Linter Check
-    runs-on: self-hosted
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
     - name: Check out the code
