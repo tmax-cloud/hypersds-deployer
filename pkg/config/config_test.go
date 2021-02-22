@@ -86,7 +86,7 @@ var _ = Describe("Config Test", func() {
 		})
 	})
 
-	Describe("[UpdateConfToK8s Test]", func() {
+	Describe("[INCOMPLETE][UpdateConfToK8s Test]", func() {
 		It("should return nil", func() {
 			kubeMock.EXPECT().InClusterConfig().Return(nil, nil).AnyTimes()
 
@@ -117,7 +117,7 @@ var _ = Describe("Config Test", func() {
 		})
 	})
 
-	Describe("[UpdateKeyringToK8s Test]", func() {
+	Describe("[INCOMPLETE][UpdateKeyringToK8s Test]", func() {
 		It("should return nil", func() {
 			kubeMock.EXPECT().InClusterConfig().Return(nil, nil).AnyTimes()
 

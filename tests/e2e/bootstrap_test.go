@@ -29,7 +29,7 @@ const (
 	cephNamespace          = "default"
 )
 
-var _ = Describe("Bootstrap Test", func() {
+var _ = Describe("[E2e] Bootstrap Test", func() {
 	defer GinkgoRecover()
 
 	var (
