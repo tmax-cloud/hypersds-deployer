@@ -1,0 +1,21 @@
+name: Pull Request Unit Test
+on: [pull_request]
+jobs:
+  unit:
+    if: "! contains(github.event.pull_request.body, '[skip-ci]')"
+    strategy:
+      matrix:
+        go: [1.13.x]
+    name: Run Unit Tests
+    runs-on: self-hosted
+    steps:
+    - name: Install Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go }}
+    - name: Install Ginkgo
+      run: go get -u github.com/onsi/ginkgo/ginkgo && go get -u github.com/onsi/gomega/...
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Run e2e tests
+      uses: ./tests/ci/e2e.sh

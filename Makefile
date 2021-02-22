@@ -4,7 +4,7 @@ build:
 	go build -o build/hypersds-provisioner
 
 container:
-	docker build .
+	docker build -t hypersds-provisioner:canary .
 	
 clean:
 	rm -rf build
