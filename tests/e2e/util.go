@@ -3,7 +3,6 @@ package e2e
 import (
 	"context"
 	"errors"
-	"os"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -14,6 +13,7 @@ import (
 
 const (
 	ProvisonerTimeout         = 30 * time.Minute
+	TestWorkspaceDir          = "/e2e"
 	InputDir                  = "example" // directory to use in test. required.
 	ProvisonerImage           = "hypersds-provisioner:canary"
 	ProvisonerName            = "hypersds-provisioner"
@@ -23,11 +23,8 @@ const (
 )
 
 func runProvisionerContainer(client *kubernetes.Clientset, nodeName string) error {
-	currentPath, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	configPath := currentPath + "/" + InputDir
+	configPath := TestWorkspaceDir + "/" + InputDir
+
 	pod := newProvisonerPod(configPath, nodeName)
 	if _, err := client.CoreV1().Pods(ProvisonerNamespace).Create(context.TODO(), pod, metav1.CreateOptions{}); err != nil {
 		return err

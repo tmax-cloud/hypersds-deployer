@@ -166,7 +166,7 @@ var _ = Describe("[E2e] Bootstrap Test", func() {
 
 	It("is simple e2e test case", func() {
 		// XXX: Change it as one's environment
-		nodeName = "master1"
+		nodeName = ""
 		err = runProvisionerContainer(clientSet, nodeName)
 
 		// Check bootstrap successfully completed

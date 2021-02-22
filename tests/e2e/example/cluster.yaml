@@ -1,14 +1,14 @@
 mon:
   count: 1
 osd:
-- hostname: worker2
+- hostname: node1
   devices:
   - /dev/sdd
 nodes:
-- ip: 192.168.50.92
+- ip: 192.168.99.111
   userid: root
-  password: k8s
-  hostname: worker2
+  password: cephceph
+  hostname: node1
 config:
   mon_warn_on_pool_no_redundancy: "false"
   osd_pool_default_size: "1"
