@@ -1,21 +1,31 @@
 name: Pull Request Unit Test
 on: [pull_request]
 jobs:
-  unit:
+  e2e:
     if: "! contains(github.event.pull_request.body, '[skip-ci]')"
     strategy:
       matrix:
         go: [1.13.x]
-    name: Run Unit Tests
+    name: Run E2e Tests
     runs-on: self-hosted
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
     - name: Install Go
       uses: actions/setup-go@v2
       with:
         go-version: ${{ matrix.go }}
     - name: Install Ginkgo
       run: go get -u github.com/onsi/ginkgo/ginkgo && go get -u github.com/onsi/gomega/...
-    - name: Checkout code
-      uses: actions/checkout@v2
-    - name: Run e2e tests
-      uses: ./tests/ci/e2e.sh
+    - name: Launch k8s cluster
+      run: ./tests/ci/e2e.sh k8s_up $GITHUB_WORKSPACE
+    - name: Launch cluster for ceph
+      run: ./tests/ci/e2e.sh cluster_up $GITHUB_WORKSPACE
+    - name: Build docker image
+      run: ./tests/ci/e2e.sh build_image $GITHUB_WORKSPACE
+    - name: Run e2e test
+      run: ./tests/ci/e2e.sh test $GITHUB_WORKSPACE
+    - name: Remove cluster for ceph
+      run: ./tests/ci/e2e.sh cluster_down $GITHUB_WORKSPACE
+    - name: Remove k8s cluster
+      run: ./tests/ci/e2e.sh k8s_down $GITHUB_WORKSPACE
