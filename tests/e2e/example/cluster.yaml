@@ -4,11 +4,25 @@ osd:
 - hostname: node1
   devices:
   - /dev/sdd
+- hostname: node2
+  devices:
+  - /dev/sdd
+- hostname: node3
+  devices:
+  - /dev/sdd
 nodes:
 - ip: 192.168.99.111
   userid: root
   password: cephceph
   hostname: node1
+- ip: 192.168.99.112
+  userid: root
+  password: cephceph
+  hostname: node2
+- ip: 192.168.99.113
+  userid: root
+  password: cephceph
+  hostname: node3
 config:
   mon_warn_on_pool_no_redundancy: "false"
   osd_pool_default_size: "1"
