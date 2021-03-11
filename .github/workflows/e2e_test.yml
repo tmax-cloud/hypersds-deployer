@@ -1,4 +1,4 @@
-name: Pull Request Unit Test
+name: Pull Request E2e Test
 on: [pull_request]
 jobs:
   e2e:
@@ -17,15 +17,33 @@ jobs:
         go-version: ${{ matrix.go }}
     - name: Install Ginkgo
       run: go get -u github.com/onsi/ginkgo/ginkgo && go get -u github.com/onsi/gomega/...
+
     - name: Launch k8s cluster
-      run: ./tests/ci/e2e.sh k8s_up $GITHUB_WORKSPACE
+      run: ./tests/ci/e2e.sh k8s_up $GITHUB_WORKSPACE ${{ secrets.REGISTRY_ENDPOINT }} ${{ secrets.REGISTRY_USER_ID }} ${{ secrets.REGISTRY_USER_PW }}
+    - name: Handle failure on launching k8s cluster
+      if: ${{ failure() }}
+      run: ./tests/ci/e2e.sh k8s_down $GITHUB_WORKSPACE
+
     - name: Launch cluster for ceph
       run: ./tests/ci/e2e.sh cluster_up $GITHUB_WORKSPACE
+    - name: Handle failure on launching ceph cluster
+      if: ${{ failure() }}
+      run: ./tests/ci/e2e.sh cluster_down $GITHUB_WORKSPACE && ./tests/ci/e2e.sh k8s_down $GITHUB_WORKSPACE
+
     - name: Build docker image
-      run: ./tests/ci/e2e.sh build_image $GITHUB_WORKSPACE
+      run: ./tests/ci/e2e.sh build_image $GITHUB_WORKSPACE ${{ secrets.REGISTRY_ENDPOINT }} ${{ secrets.REGISTRY_USER_ID }} ${{ secrets.REGISTRY_USER_PW }}
+    - name: Handle failure on building docker image
+      if: ${{ failure() }}
+      run: ./tests/ci/e2e.sh cluster_down $GITHUB_WORKSPACE && ./tests/ci/e2e.sh k8s_down $GITHUB_WORKSPACE
+
     - name: Run e2e test
       run: ./tests/ci/e2e.sh test $GITHUB_WORKSPACE
+    - name: Handle failure on running e2e test
+      if: ${{ failure() }}
+      run: ./tests/ci/e2e.sh cluster_down $GITHUB_WORKSPACE && ./tests/ci/e2e.sh k8s_down $GITHUB_WORKSPACE
+
     - name: Remove cluster for ceph
       run: ./tests/ci/e2e.sh cluster_down $GITHUB_WORKSPACE
+
     - name: Remove k8s cluster
       run: ./tests/ci/e2e.sh k8s_down $GITHUB_WORKSPACE

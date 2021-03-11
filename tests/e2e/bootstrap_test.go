@@ -19,6 +19,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 )
@@ -32,30 +33,25 @@ type BootstrapInput struct {
 	CephNamespace           string `yaml:"cephNamespace" default:"default"`
 	CephProvisionerImage    string `yaml:"cephProvisionerImage" default:"hypersds-provisioner:test"`
 	CephProvisionerNodeName string `yaml:"cephProvisionerNodeName,omitempty"`
+	RegistryCredentialName  string `yaml:"registryCredentialName,omitempty"`
+	TestManifestDir         string `yaml:"testManifestDir,omitempty"`
 }
 
 const (
-	/*
-		cephConfName        = "ceph-conf"
-		cephKeyringName     = "ceph-secret"
-		cephRoleName        = "ceph-role"
-		cephRoleBindingName = "ceph-rolebinding"
-		// TODO: change to own SA and NS
-		cephServiceAccountName = "default"
-		cephNamespace          = "default"
-	*/
-	inputDirName  = "inputs/"
-	inputFileName = "bootstrap.yaml"
+	//testWorkspaceDir    = "/e2e"
+	inputDir    = "inputs"   // directory to use in test. required.
+	hostPathDir = "manifest" // directory to use in test. required.
+	inputFile   = "bootstrap.yaml"
 )
 
 var _ = Describe("[E2e] Bootstrap Test", func() {
 	defer GinkgoRecover()
 
 	var (
-		err       error
-		clientSet *kubernetes.Clientset
-		//nodeName	string // required in multinode k8s environment
-		bootstrapInput BootstrapInput
+		err              error
+		clientSet        *kubernetes.Clientset
+		bootstrapInput   BootstrapInput
+		testWorkspaceDir string
 	)
 
 	BeforeEach(func() {
@@ -73,15 +69,18 @@ var _ = Describe("[E2e] Bootstrap Test", func() {
 		clientSet, err = kubernetes.NewForConfig(kubeConfigWithFlag)
 		Expect(err).NotTo(HaveOccurred())
 
-		inputFilePath := inputDirName + inputFileName
+		// Open bootstrap input yaml file
+		testWorkspaceDir, err = os.Getwd()
+		Expect(err).NotTo(HaveOccurred())
+
+		inputFilePath := filepath.Join(testWorkspaceDir, inputDir, inputFile)
+		fmt.Println("Opening file ", inputFilePath)
 		source, err := ioutil.ReadFile(inputFilePath)
 		Expect(err).NotTo(HaveOccurred())
 		fmt.Println(source)
 
 		err = yaml.Unmarshal(source, &bootstrapInput)
 		Expect(err).NotTo(HaveOccurred())
-
-		fmt.Println("bootstrapInput: ", bootstrapInput)
 
 		cephConfCm := corev1.ConfigMap{
 			TypeMeta: metav1.TypeMeta{
@@ -195,12 +194,28 @@ var _ = Describe("[E2e] Bootstrap Test", func() {
 	})
 
 	It("is simple e2e test case", func() {
-		// XXX: Change it as one's environment
-		//nodeName = ""
-		err = runProvisionerContainer(clientSet, bootstrapInput.CephProvisionerImage, bootstrapInput.CephNamespace, bootstrapInput.CephProvisionerNodeName)
+		if bootstrapInput.TestManifestDir != "" {
+			err = runProvisionerContainer(clientSet,
+				bootstrapInput.CephNamespace,
+				bootstrapInput.CephProvisionerImage,
+				bootstrapInput.TestManifestDir,
+				bootstrapInput.RegistryCredentialName,
+				bootstrapInput.CephProvisionerNodeName)
 
-		// Check bootstrap successfully completed
-		Expect(err).NotTo(HaveOccurred())
+			// Check bootstrap successfully completed
+			Expect(err).NotTo(HaveOccurred())
+		} else {
+			testManifestDir := filepath.Join(testWorkspaceDir, inputDir, hostPathDir)
+			err = runProvisionerContainer(clientSet,
+				bootstrapInput.CephNamespace,
+				bootstrapInput.CephProvisionerImage,
+				testManifestDir,
+				bootstrapInput.RegistryCredentialName,
+				bootstrapInput.CephProvisionerNodeName)
+
+			// Check bootstrap successfully completed
+			Expect(err).NotTo(HaveOccurred())
+		}
 
 		// Check ConfigMap and Secret are successfully updated
 		cephConfCm, err := clientSet.CoreV1().ConfigMaps(bootstrapInput.CephNamespace).Get(context.TODO(), bootstrapInput.CephConfigMapName, metav1.GetOptions{})

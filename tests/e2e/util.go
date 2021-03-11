@@ -12,21 +12,14 @@ import (
 )
 
 const (
-	podRunningTimeout = 30 * time.Minute
-	testWorkspaceDir  = "/e2e"
-	inputDir          = "inputs" // directory to use in test. required.
-	//ProvisonerImage           = "172.22.4.104:5000/hypersds-provisioner:test"
+	podRunningTimeout  = 30 * time.Minute
 	podName            = "hypersds-provisioner"
 	podVolumeName      = "config-volume"
 	podVolumeMountPath = "/manifest"
-	//ProvisonerNamespace       = "default"
-	registryName = "regcred"
 )
 
-func runProvisionerContainer(client *kubernetes.Clientset, provisionerImage, provisionerNamespace, nodeName string) error {
-	configPath := testWorkspaceDir + "/" + inputDir
-
-	pod := newProvisonerPod(configPath, provisionerImage, provisionerNamespace, nodeName)
+func runProvisionerContainer(client *kubernetes.Clientset, provisionerNamespace, provisionerImage, volumeHostPath, registryName, nodeName string) error {
+	pod := newProvisonerPod(provisionerNamespace, provisionerImage, volumeHostPath, registryName, nodeName)
 	if _, err := client.CoreV1().Pods(provisionerNamespace).Create(context.TODO(), pod, metav1.CreateOptions{}); err != nil {
 		return err
 	}
@@ -49,7 +42,7 @@ func isPodCompleted(client *kubernetes.Clientset, provisionerNamespace string) w
 	}
 }
 
-func newProvisonerPod(volumePath, provisionerImage, provisionerNamespace, nodeName string) *corev1.Pod {
+func newProvisonerPod(provisionerNamespace, provisionerImage, volumeHostPath, registryName, nodeName string) *corev1.Pod {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      podName,
@@ -72,7 +65,7 @@ func newProvisonerPod(volumePath, provisionerImage, provisionerNamespace, nodeNa
 					Name: podVolumeName,
 					VolumeSource: corev1.VolumeSource{
 						HostPath: &corev1.HostPathVolumeSource{
-							Path: volumePath,
+							Path: volumeHostPath,
 						},
 					},
 				},
