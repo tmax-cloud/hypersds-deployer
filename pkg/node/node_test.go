@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	hypersdsv1alpha1 "github.com/tmax-cloud/hypersds-operator/api/v1alpha1"
+	"golang.org/x/crypto/ssh"
 )
 
 var _ = Describe("Node Test", func() {
@@ -57,12 +58,12 @@ var _ = Describe("Node Test", func() {
 	Describe("RunSshCmd Test", func() {
 		var (
 			mockCtrl *gomock.Controller
-			m        *common.MockExecInterface
+			m        *common.MockSshInterface
 		)
 
 		BeforeEach(func() {
 			mockCtrl = gomock.NewController(GinkgoT())
-			m = common.NewMockExecInterface(mockCtrl)
+			m = common.NewMockSshInterface(mockCtrl)
 		})
 
 		AfterEach(func() {
@@ -71,8 +72,8 @@ var _ = Describe("Node Test", func() {
 
 		It("is simple test case", func() {
 			testCommand := "hello world"
-			m.EXPECT().CommandExecute(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-				func(resultStdout, resultStderr *bytes.Buffer, ctx, name interface{}, arg ...string) error {
+			m.EXPECT().Run(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+				func(addr, command string, resultStdout, resultStderr *bytes.Buffer, config *ssh.ClientConfig) error {
 					resultStdout.WriteString("hello world")
 					return nil
 				}).AnyTimes()

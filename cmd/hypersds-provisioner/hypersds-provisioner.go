@@ -278,7 +278,7 @@ func installBasePackage(targetNodeList []node.NodeInterface) error {
 }
 
 func processCmdOnNode(targetNode node.NodeInterface, command string) error {
-	output, err := targetNode.RunSshCmd(common.ExecWrapper, command)
+	output, err := targetNode.RunSshCmd(common.SshWrapper, command)
 	return processExecError(err, output)
 }
 
