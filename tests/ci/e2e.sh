@@ -2,16 +2,31 @@
 
 function minikube_start() {
 	echo "--------- Launch k8s cluster by minikube ---------"
+	# working path is $GITHUB_WORKSPACE (e.g. /home/runner_account/hypersds-provisioner/hypsersds-provisioner/)
 	curl -Lo $1/minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
 	chmod +x $1/minikube
-	# working path is $GITHUB_WORKSPACE (e.g. /home/runner/hypersds-provisioner/hypsersds-provisioner/)
+	if [ -z $2 ]
+	then
 	$1/minikube start --kubernetes-version v1.19.4 --mount --mount-string=$1"/tests/e2e/:/e2e/"
-	minikube update-context
+	$1/minikube update-context
+	else
+	$1/minikube start --insecure-registry $2 --kubernetes-version v1.19.4 --mount --mount-string=$1"/tests/e2e/:/e2e/"
+	$1/minikube update-context
+	minikube_set_registry $1 $2 $3 $4
+	fi
+}
+
+function minikube_set_registry() {
+	echo "--------- Set docker private registry on minikube ---------"
+	$1/minikube ssh "echo $4 | docker login $2 --username $3 --password-stdin"
+	$1/minikube ssh cat .docker/config.json > $1/_minikube_registry_config.json
+	kubectl create secret generic regcred --from-file=.dockerconfigjson=$1/_minikube_registry_config.json --type=kubernetes.io/dockerconfigjson
 }
 
 function minikube_delete() {
 	echo "--------- Remove k8s minikube cluster ---------"
 	$1/minikube delete
+	rm $1/_minikube_registry_config.json
 	rm $1/minikube
 }
 
@@ -29,7 +44,13 @@ function build_image() {
 	echo "--------- Build hypersds-provisioner docker image ---------"
 	make build
 	eval $($1/minikube docker-env)
+	if [ -z $2 ]
+	then
 	make container
+	else
+	echo $4 | docker login $2 --username $3 --password-stdin
+	make container REGISTRY=$2
+	fi
 }
 
 function e2e_test() {
@@ -41,18 +62,25 @@ function how_to_use() {
 	echo "$0 <op> {param1} {param2}...
 
 Available Operations:
-k8s_up <base_directory>			launch minikube cluster with mounting '<base_directory>/tests/e2e/'
-k8s_down <base_directory>		remove k8s cluster launched by minikube at <base_directory>
-cluster_up <base_directory>		launch cluster to install ceph by '<base_directory/tests/ci/Vagrantfile'
-cluster_destroy <base_directory>	remove cluster launched by '<base_directory/tests/ci/Vagrantfile'
-build_image <base_directory>		build pod image
-test <base_directory>			test all e2e testcases in '<base_directory>/tests/e2e/'
+k8s_up <base_dir> [reg_endpoint reg_id reg_pw]	Launch minikube cluster with mounting '<base_directory>/tests/e2e/'
+						Activate private registry reg_endpoint with reg_id and reg_pw if they exist
+
+k8s_down <base_dir>				Remove k8s cluster launched by minikube at <base_directory>
+
+cluster_up <base_dir>				Launch cluster to install ceph by '<base_directory/tests/ci/Vagrantfile'
+
+cluster_destroy <base_dir>			Remove cluster launched by '<base_directory/tests/ci/Vagrantfile'
+
+build_image <base_dir> [reg_endpoint]		Build pod image
+						Push built image to private registry if reg_endpoint exists
+
+test <base_dir>					Test all e2e testcases in '<base_directory>/tests/e2e/'
 " >&2
 }
 
 case "${1:-}" in
 k8s_up)
-	minikube_start $2
+	minikube_start $2 $3 $4 $5
 	;;
 k8s_down)
 	minikube_delete $2
@@ -64,7 +92,7 @@ cluster_down)
 	vagrant_destroy $2
 	;;
 build_image)
-	build_image $2
+	build_image $2 $3 $4 $5
 	;;
 test)
 	e2e_test $2
