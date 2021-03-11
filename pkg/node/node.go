@@ -4,6 +4,7 @@ import (
 	common "hypersds-provisioner/pkg/common/wrapper"
 
 	hypersdsv1alpha1 "github.com/tmax-cloud/hypersds-operator/api/v1alpha1"
+	"golang.org/x/crypto/ssh"
 
 	"bytes"
 	"context"
@@ -19,7 +20,7 @@ type NodeInterface interface {
 	GetUserPw() (string, error)
 	GetHostSpec() (HostSpecInterface, error)
 
-	RunSshCmd(exec common.ExecInterface, cmdQuery string) (bytes.Buffer, error)
+	RunSshCmd(sshWrapper common.SshInterface, cmdQuery string) (bytes.Buffer, error)
 
 	// if role is DEST, copy file from container to this node
 	// if role is SRC, copy file from this node to container
@@ -64,9 +65,7 @@ func (n *Node) GetHostSpec() (HostSpecInterface, error) {
 
 // executing commands: sshpass -f <(printf '%s\n' userPw) ssh -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null userId@ipAddr cmdQuery
 // TODO: replace sshpass command to go ssh pkg
-func (n *Node) RunSshCmd(exec common.ExecInterface, cmdQuery string) (bytes.Buffer, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), SshCmdTimeout)
-	defer cancel()
+func (n *Node) RunSshCmd(sshWrapper common.SshInterface, cmdQuery string) (bytes.Buffer, error) {
 
 	userPw, err := n.GetUserPw()
 	if err != nil {
@@ -86,13 +85,17 @@ func (n *Node) RunSshCmd(exec common.ExecInterface, cmdQuery string) (bytes.Buff
 		return bytes.Buffer{}, err
 	}
 
-	const sshKeyCheckOpt = "-oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null"
-	sshCmd := fmt.Sprintf("sshpass -f <(printf '%%s\\n' %[1]s) ssh %[2]s %[3]s@%[4]s '%[5]s'", userPw, sshKeyCheckOpt, userId, ipAddr, cmdQuery)
-	parameters := []string{"-c"}
-	parameters = append(parameters, sshCmd)
+	sshConfig := &ssh.ClientConfig{
+		User: userId,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(userPw),
+		},
+		Timeout:         SshCmdTimeout,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint    , todo ssh key verification
+	}
 
 	var resultStdout, resultStderr bytes.Buffer
-	err = exec.CommandExecute(&resultStdout, &resultStderr, ctx, "bash", parameters...)
+	err = sshWrapper.Run(ipAddr, cmdQuery, &resultStdout, &resultStderr, sshConfig)
 
 	if err != nil {
 		return resultStderr, err
