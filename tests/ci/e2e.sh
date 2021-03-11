@@ -21,6 +21,9 @@ function minikube_set_registry() {
 	$1/minikube ssh "echo $4 | docker login $2 --username $3 --password-stdin"
 	$1/minikube ssh cat .docker/config.json > $1/_minikube_registry_config.json
 	kubectl create secret generic regcred --from-file=.dockerconfigjson=$1/_minikube_registry_config.json --type=kubernetes.io/dockerconfigjson
+    # activate registry and hostpath dir of e2e input files
+    sed -i 's/\# registryCredentialName/registryCredentialName/g' $1/tests/e2e/inputs/*.yaml
+    sed -i 's/\# testManifestDir/testManifestDir/g' $1/tests/e2e/inputs/*.yaml
 }
 
 function minikube_delete() {

@@ -6,3 +6,9 @@ cephServiceAccountName: default
 cephNamespace: default
 # if testing by private registry, modify cephProvisionerImage to include registry endpoint
 cephProvisionerImage: hypersds-provisioner:test
+
+# (optional) if testing by private registry, create below dockerconfigjson secret before bootstrap e2e test
+# registryCredentialName: regcred
+
+# (optional) if testing by minikube vm, mount host path of cluster.yaml to below path
+# testManifestDir: /e2e/inputs/manifest
