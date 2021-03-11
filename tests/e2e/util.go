@@ -12,29 +12,30 @@ import (
 )
 
 const (
-	ProvisonerTimeout         = 30 * time.Minute
-	TestWorkspaceDir          = "/e2e"
-	InputDir                  = "example" // directory to use in test. required.
-	ProvisonerImage           = "hypersds-provisioner:canary"
-	ProvisonerName            = "hypersds-provisioner"
-	ProvisonerVolumeName      = "config-volume"
-	ProvisonerVolumeMountPath = "/manifest"
-	ProvisonerNamespace       = "default"
+	podRunningTimeout = 30 * time.Minute
+	testWorkspaceDir  = "/e2e"
+	inputDir          = "inputs" // directory to use in test. required.
+	//ProvisonerImage           = "172.22.4.104:5000/hypersds-provisioner:test"
+	podName            = "hypersds-provisioner"
+	podVolumeName      = "config-volume"
+	podVolumeMountPath = "/manifest"
+	//ProvisonerNamespace       = "default"
+	registryName = "regcred"
 )
 
-func runProvisionerContainer(client *kubernetes.Clientset, nodeName string) error {
-	configPath := TestWorkspaceDir + "/" + InputDir
+func runProvisionerContainer(client *kubernetes.Clientset, provisionerImage, provisionerNamespace, nodeName string) error {
+	configPath := testWorkspaceDir + "/" + inputDir
 
-	pod := newProvisonerPod(configPath, nodeName)
-	if _, err := client.CoreV1().Pods(ProvisonerNamespace).Create(context.TODO(), pod, metav1.CreateOptions{}); err != nil {
+	pod := newProvisonerPod(configPath, provisionerImage, provisionerNamespace, nodeName)
+	if _, err := client.CoreV1().Pods(provisionerNamespace).Create(context.TODO(), pod, metav1.CreateOptions{}); err != nil {
 		return err
 	}
-	return wait.PollImmediate(time.Second, ProvisonerTimeout, isPodCompleted(client))
+	return wait.PollImmediate(time.Second, podRunningTimeout, isPodCompleted(client, provisionerNamespace))
 }
 
-func isPodCompleted(client *kubernetes.Clientset) wait.ConditionFunc {
+func isPodCompleted(client *kubernetes.Clientset, provisionerNamespace string) wait.ConditionFunc {
 	return func() (bool, error) {
-		pod, err := client.CoreV1().Pods(ProvisonerNamespace).Get(context.TODO(), ProvisonerName, metav1.GetOptions{})
+		pod, err := client.CoreV1().Pods(provisionerNamespace).Get(context.TODO(), podName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -48,27 +49,27 @@ func isPodCompleted(client *kubernetes.Clientset) wait.ConditionFunc {
 	}
 }
 
-func newProvisonerPod(volumePath, nodeName string) *corev1.Pod {
+func newProvisonerPod(volumePath, provisionerImage, provisionerNamespace, nodeName string) *corev1.Pod {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ProvisonerName,
-			Namespace: ProvisonerNamespace,
+			Name:      podName,
+			Namespace: provisionerNamespace,
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Name:            ProvisonerName,
-					Image:           ProvisonerImage,
+					Name:            podName,
+					Image:           provisionerImage,
 					ImagePullPolicy: corev1.PullPolicy("IfNotPresent"),
 					Args:            []string{},
 					VolumeMounts: []corev1.VolumeMount{
-						{Name: ProvisonerVolumeName, MountPath: ProvisonerVolumeMountPath},
+						{Name: podVolumeName, MountPath: podVolumeMountPath},
 					},
 				},
 			},
 			Volumes: []corev1.Volume{
 				{
-					Name: ProvisonerVolumeName,
+					Name: podVolumeName,
 					VolumeSource: corev1.VolumeSource{
 						HostPath: &corev1.HostPathVolumeSource{
 							Path: volumePath,
@@ -77,6 +78,9 @@ func newProvisonerPod(volumePath, nodeName string) *corev1.Pod {
 				},
 			},
 			RestartPolicy: corev1.RestartPolicyNever,
+			ImagePullSecrets: []corev1.LocalObjectReference{
+				{Name: registryName},
+			},
 		},
 	}
 	if nodeName != "" {

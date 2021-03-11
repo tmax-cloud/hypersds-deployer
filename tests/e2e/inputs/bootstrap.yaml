@@ -1,0 +1,8 @@
+cephConfigMapName: ceph-conf
+cephKeyringName: ceph-secret
+cephRoleName: ceph-role
+cephRoleBindingName: ceph-rolebinding
+cephServiceAccountName: default
+cephNamespace: default
+# if testing by private registry, modify cephProvisionerImage to include registry endpoint
+cephProvisionerImage: hypersds-provisioner:test

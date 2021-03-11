@@ -12,6 +12,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 
+	"io/ioutil"
+
+	"gopkg.in/yaml.v2"
+
 	"context"
 	"flag"
 	"fmt"
@@ -19,14 +23,29 @@ import (
 	"reflect"
 )
 
+type BootstrapInput struct {
+	CephConfigMapName       string `yaml:"cephConfigMapName" default:"ceph-conf"`
+	CephKeyringName         string `yaml:"cephKeyringName" default:"ceph-secret"`
+	CephRoleName            string `yaml:"cephRoleName" default:"ceph-role"`
+	CephRoleBindingName     string `yaml:"cephRoleBindingName" default:"ceph-rolebinding"`
+	CephServiceAccountName  string `yaml:"cephServiceAccountName" default:"default"`
+	CephNamespace           string `yaml:"cephNamespace" default:"default"`
+	CephProvisionerImage    string `yaml:"cephProvisionerImage" default:"hypersds-provisioner:test"`
+	CephProvisionerNodeName string `yaml:"cephProvisionerNodeName,omitempty"`
+}
+
 const (
-	cephConfName        = "ceph-conf"
-	cephKeyringName     = "ceph-secret"
-	cephRoleName        = "ceph-role"
-	cephRoleBindingName = "ceph-rolebinding"
-	// TODO: change to own SA and NS
-	cephServiceAccountName = "default"
-	cephNamespace          = "default"
+	/*
+		cephConfName        = "ceph-conf"
+		cephKeyringName     = "ceph-secret"
+		cephRoleName        = "ceph-role"
+		cephRoleBindingName = "ceph-rolebinding"
+		// TODO: change to own SA and NS
+		cephServiceAccountName = "default"
+		cephNamespace          = "default"
+	*/
+	inputDirName  = "inputs/"
+	inputFileName = "bootstrap.yaml"
 )
 
 var _ = Describe("[E2e] Bootstrap Test", func() {
@@ -35,7 +54,8 @@ var _ = Describe("[E2e] Bootstrap Test", func() {
 	var (
 		err       error
 		clientSet *kubernetes.Clientset
-		nodeName  string // required in multinode k8s environment
+		//nodeName	string // required in multinode k8s environment
+		bootstrapInput BootstrapInput
 	)
 
 	BeforeEach(func() {
@@ -53,18 +73,28 @@ var _ = Describe("[E2e] Bootstrap Test", func() {
 		clientSet, err = kubernetes.NewForConfig(kubeConfigWithFlag)
 		Expect(err).NotTo(HaveOccurred())
 
+		inputFilePath := inputDirName + inputFileName
+		source, err := ioutil.ReadFile(inputFilePath)
+		Expect(err).NotTo(HaveOccurred())
+		fmt.Println(source)
+
+		err = yaml.Unmarshal(source, &bootstrapInput)
+		Expect(err).NotTo(HaveOccurred())
+
+		fmt.Println("bootstrapInput: ", bootstrapInput)
+
 		cephConfCm := corev1.ConfigMap{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "ConfigMap",
 				APIVersion: "v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      cephConfName,
-				Namespace: cephNamespace,
+				Name:      bootstrapInput.CephConfigMapName,
+				Namespace: bootstrapInput.CephNamespace,
 			},
 		}
 
-		createdCm, err := clientSet.CoreV1().ConfigMaps(cephNamespace).Create(context.TODO(), &cephConfCm, metav1.CreateOptions{})
+		createdCm, err := clientSet.CoreV1().ConfigMaps(bootstrapInput.CephNamespace).Create(context.TODO(), &cephConfCm, metav1.CreateOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		fmt.Println("return type:", reflect.TypeOf(createdCm))
 
@@ -76,12 +106,12 @@ var _ = Describe("[E2e] Bootstrap Test", func() {
 				APIVersion: "v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      cephKeyringName,
-				Namespace: cephNamespace,
+				Name:      bootstrapInput.CephKeyringName,
+				Namespace: bootstrapInput.CephNamespace,
 			},
 		}
 
-		createdSecret, err := clientSet.CoreV1().Secrets(cephNamespace).Create(context.TODO(), &cephKeyringSecret, metav1.CreateOptions{})
+		createdSecret, err := clientSet.CoreV1().Secrets(bootstrapInput.CephNamespace).Create(context.TODO(), &cephKeyringSecret, metav1.CreateOptions{})
 		Expect(err).NotTo(HaveOccurred())
 
 		fmt.Println("return type:", reflect.TypeOf(createdSecret))
@@ -93,8 +123,8 @@ var _ = Describe("[E2e] Bootstrap Test", func() {
 				APIVersion: "rbac.authorization.k8s.io/v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      cephRoleName,
-				Namespace: cephNamespace,
+				Name:      bootstrapInput.CephRoleName,
+				Namespace: bootstrapInput.CephNamespace,
 			},
 			Rules: []rbacv1.PolicyRule{
 				{
@@ -105,7 +135,7 @@ var _ = Describe("[E2e] Bootstrap Test", func() {
 			},
 		}
 
-		createdRole, err := clientSet.RbacV1().Roles(cephNamespace).Create(context.TODO(), &provisionerRole, metav1.CreateOptions{})
+		createdRole, err := clientSet.RbacV1().Roles(bootstrapInput.CephNamespace).Create(context.TODO(), &provisionerRole, metav1.CreateOptions{})
 		Expect(err).NotTo(HaveOccurred())
 
 		fmt.Println("return type:", reflect.TypeOf(createdRole))
@@ -117,24 +147,24 @@ var _ = Describe("[E2e] Bootstrap Test", func() {
 				APIVersion: "rbac.authorization.k8s.io/v1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      cephRoleBindingName,
-				Namespace: cephNamespace,
+				Name:      bootstrapInput.CephRoleBindingName,
+				Namespace: bootstrapInput.CephNamespace,
 			},
 			Subjects: []rbacv1.Subject{
 				{
 					Kind:      "ServiceAccount",
-					Name:      cephServiceAccountName,
-					Namespace: cephNamespace,
+					Name:      bootstrapInput.CephServiceAccountName,
+					Namespace: bootstrapInput.CephNamespace,
 				},
 			},
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: "rbac.authorization.k8s.io",
 				Kind:     "Role",
-				Name:     cephRoleName,
+				Name:     bootstrapInput.CephRoleName,
 			},
 		}
 
-		createdRoleBinding, err := clientSet.RbacV1().RoleBindings(cephNamespace).Create(context.TODO(), &provisionerRoleBinding, metav1.CreateOptions{})
+		createdRoleBinding, err := clientSet.RbacV1().RoleBindings(bootstrapInput.CephNamespace).Create(context.TODO(), &provisionerRoleBinding, metav1.CreateOptions{})
 		Expect(err).NotTo(HaveOccurred())
 
 		fmt.Println("return type:", reflect.TypeOf(createdRoleBinding))
@@ -143,22 +173,22 @@ var _ = Describe("[E2e] Bootstrap Test", func() {
 
 	AfterEach(func() {
 		deletePolicy := metav1.DeletePropagationForeground
-		err = clientSet.CoreV1().ConfigMaps(cephNamespace).Delete(context.TODO(), cephConfName, metav1.DeleteOptions{
+		err = clientSet.CoreV1().ConfigMaps(bootstrapInput.CephNamespace).Delete(context.TODO(), bootstrapInput.CephConfigMapName, metav1.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
 		})
 		Expect(err).NotTo(HaveOccurred())
 
-		err = clientSet.CoreV1().Secrets(cephNamespace).Delete(context.TODO(), cephKeyringName, metav1.DeleteOptions{
+		err = clientSet.CoreV1().Secrets(bootstrapInput.CephNamespace).Delete(context.TODO(), bootstrapInput.CephKeyringName, metav1.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
 		})
 		Expect(err).NotTo(HaveOccurred())
 
-		err = clientSet.RbacV1().Roles(cephNamespace).Delete(context.TODO(), cephRoleName, metav1.DeleteOptions{
+		err = clientSet.RbacV1().Roles(bootstrapInput.CephNamespace).Delete(context.TODO(), bootstrapInput.CephRoleName, metav1.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
 		})
 		Expect(err).NotTo(HaveOccurred())
 
-		err = clientSet.RbacV1().RoleBindings(cephNamespace).Delete(context.TODO(), cephRoleBindingName, metav1.DeleteOptions{
+		err = clientSet.RbacV1().RoleBindings(bootstrapInput.CephNamespace).Delete(context.TODO(), bootstrapInput.CephRoleBindingName, metav1.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -166,20 +196,20 @@ var _ = Describe("[E2e] Bootstrap Test", func() {
 
 	It("is simple e2e test case", func() {
 		// XXX: Change it as one's environment
-		nodeName = ""
-		err = runProvisionerContainer(clientSet, nodeName)
+		//nodeName = ""
+		err = runProvisionerContainer(clientSet, bootstrapInput.CephProvisionerImage, bootstrapInput.CephNamespace, bootstrapInput.CephProvisionerNodeName)
 
 		// Check bootstrap successfully completed
 		Expect(err).NotTo(HaveOccurred())
 
 		// Check ConfigMap and Secret are successfully updated
-		cephConfCm, err := clientSet.CoreV1().ConfigMaps(cephNamespace).Get(context.TODO(), cephConfName, metav1.GetOptions{})
+		cephConfCm, err := clientSet.CoreV1().ConfigMaps(bootstrapInput.CephNamespace).Get(context.TODO(), bootstrapInput.CephConfigMapName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 
 		cmData := cephConfCm.Data
 		Expect(cmData).NotTo(BeEmpty())
 
-		cephKeyringSecret, err := clientSet.CoreV1().Secrets(cephNamespace).Get(context.TODO(), cephKeyringName, metav1.GetOptions{})
+		cephKeyringSecret, err := clientSet.CoreV1().Secrets(bootstrapInput.CephNamespace).Get(context.TODO(), bootstrapInput.CephKeyringName, metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 
 		secretData := cephKeyringSecret.Data
