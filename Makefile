@@ -5,7 +5,7 @@ PROVISIONER_IMAGE = hypersds-provisioner
 PROVISIONER_TAG = test
 
 build:
-	go build -o build/hypersds-provisioner
+	go build -o build/ ./...
 
 container:
 ifeq ($(REGISTRY),)
