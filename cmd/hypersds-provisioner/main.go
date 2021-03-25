@@ -6,12 +6,9 @@ import (
 )
 
 func main() {
-	provisioner, err := provisioner.NewProvisionerWrapper.NewProvisioner()
-	if err != nil {
-		panic(err)
-	}
+	provisionerInstance := provisioner.GetProvisionerWrapper.GetProvisioner()
 
-    err = provisioner.Run()
+    err := provisionerInstance.Run()
     if err != nil {
         panic(err)
     }

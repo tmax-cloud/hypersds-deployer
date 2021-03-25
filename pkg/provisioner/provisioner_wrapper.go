@@ -1,11 +1,11 @@
 package provisioner
 
-type NewProvisionerInterface interface {
-	NewProvisioner() (ProvisionerInterface, error)
+type GetProvisionerInterface interface {
+	GetProvisioner() ProvisionerInterface
 }
 
-var NewProvisionerWrapper NewProvisionerInterface
+var GetProvisionerWrapper GetProvisionerInterface
 
 func init() {
-	NewProvisionerWrapper = &NewProvisionerStruct{}
+	GetProvisionerWrapper = &GetProvisionerStruct{}
 }
