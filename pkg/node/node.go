@@ -63,7 +63,6 @@ func (n *Node) GetHostSpec() (HostSpecInterface, error) {
 	return n.hostSpec, nil
 }
 
-// executing commands: sshpass -f <(printf '%s\n' userPw) ssh -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null userId@ipAddr cmdQuery
 // TODO: replace sshpass command to go ssh pkg
 func (n *Node) RunSshCmd(sshWrapper common.SshInterface, cmdQuery string) (bytes.Buffer, error) {
 
@@ -104,6 +103,10 @@ func (n *Node) RunSshCmd(sshWrapper common.SshInterface, cmdQuery string) (bytes
 	return resultStdout, nil
 }
 
+/* Executing command
+ * (DESTINATION) sshpass -f <(printf '%s\n' userPw) scp -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null srcFile userId@ipAddr:/destFile
+ * (SOURCE) sshpass -f <(printf '%s\n' userPw) scp -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null userId@ipAddr:/srcFile destFile
+ */
 // TODO: replace sshpass command to go ssh pkg
 func (n *Node) RunScpCmd(exec common.ExecInterface, srcFile, destFile string, role Role) (bytes.Buffer, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), SshCmdTimeout)

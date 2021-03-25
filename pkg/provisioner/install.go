@@ -145,6 +145,15 @@ func installBasePackage(targetNodeList []node.NodeInterface) error {
 		}
 	}
 
+	fmt.Println("[installBasePackage] executing ntpdate")
+	const setNtpCmd = "ntpdate -u time.google.com"
+	for _, n := range targetNodeList {
+		err = processCmdOnNode(n, setNtpCmd)
+		if err != nil {
+			return err
+		}
+	}
+
 	fmt.Println("[installBasePackage] executing curl docker ...")
 	const addDockerGpgKeyCmd = "curl -s https://download.docker.com/linux/ubuntu/gpg | apt-key add - &>/dev/null"
 	for _, n := range targetNodeList {
@@ -176,15 +185,6 @@ func installBasePackage(targetNodeList []node.NodeInterface) error {
 	const restartDockerCmd = "systemctl restart docker"
 	for _, n := range targetNodeList {
 		err = processCmdOnNode(n, restartDockerCmd)
-		if err != nil {
-			return err
-		}
-	}
-
-	fmt.Println("[installBasePackage] executing ntpdate")
-	const setNtpCmd = "ntpdate -u time.google.com"
-	for _, n := range targetNodeList {
-		err = processCmdOnNode(n, setNtpCmd)
 		if err != nil {
 			return err
 		}

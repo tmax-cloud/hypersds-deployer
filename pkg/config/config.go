@@ -12,7 +12,7 @@ import (
 
 const (
 	K8sNamespace = "default"
-	k8sConfigMap = "ceph-conf"
+	K8sConfigMap = "ceph-conf"
 	K8sSecret    = "ceph-secret"
 )
 
@@ -138,7 +138,7 @@ func (conf *CephConfig) UpdateConfToK8s(kubeWrapper wrapper.KubeInterface) error
 		panic(err)
 	}
 
-	configMap, err := clientset.CoreV1().ConfigMaps(K8sNamespace).Get(context.TODO(), k8sConfigMap, metav1.GetOptions{})
+	configMap, err := clientset.CoreV1().ConfigMaps(K8sNamespace).Get(context.TODO(), K8sConfigMap, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
