@@ -44,178 +44,188 @@ const (
 	inputFile   = "bootstrap.yaml"
 )
 
+var (
+	err              error
+	clientSet        *kubernetes.Clientset
+	bootstrapInput   BootstrapInput
+	testWorkspaceDir string
+	deletePolicy     metav1.DeletionPropagation
+)
+
+var _ = BeforeSuite(func() {
+	// Create k8s clientset
+	var kubeconfig *string
+	if home := homedir.HomeDir(); home != "" {
+		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+	} else {
+		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	}
+	flag.Parse()
+
+	kubeConfigWithFlag, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	Expect(err).NotTo(HaveOccurred())
+
+	clientSet, err = kubernetes.NewForConfig(kubeConfigWithFlag)
+	Expect(err).NotTo(HaveOccurred())
+
+	// Open bootstrap input yaml file
+	testWorkspaceDir, err = os.Getwd()
+	Expect(err).NotTo(HaveOccurred())
+
+	inputFilePath := filepath.Join(testWorkspaceDir, inputDir, inputFile)
+	fmt.Println("Opening file ", inputFilePath)
+	source, err := ioutil.ReadFile(inputFilePath)
+	Expect(err).NotTo(HaveOccurred())
+	fmt.Println(source)
+
+	err = yaml.Unmarshal(source, &bootstrapInput)
+	Expect(err).NotTo(HaveOccurred())
+
+	// Create ConfigMap for ceph config
+	cephConfCm := corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bootstrapInput.CephConfigMapName,
+			Namespace: bootstrapInput.CephNamespace,
+		},
+	}
+
+	createdCm, err := clientSet.CoreV1().ConfigMaps(bootstrapInput.CephNamespace).Create(context.TODO(), &cephConfCm, metav1.CreateOptions{})
+	Expect(err).NotTo(HaveOccurred())
+	fmt.Println("return type:", reflect.TypeOf(createdCm))
+
+	fmt.Println("cm result: ", createdCm)
+
+	// Create Secret for ceph keyring
+	cephKeyringSecret := corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bootstrapInput.CephKeyringName,
+			Namespace: bootstrapInput.CephNamespace,
+		},
+	}
+
+	createdSecret, err := clientSet.CoreV1().Secrets(bootstrapInput.CephNamespace).Create(context.TODO(), &cephKeyringSecret, metav1.CreateOptions{})
+	Expect(err).NotTo(HaveOccurred())
+
+	fmt.Println("return type:", reflect.TypeOf(createdSecret))
+	fmt.Println("secret result: ", createdSecret)
+
+	// Create Role to get/update on ConfigMap/Secret
+	provisionerRole := rbacv1.Role{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Role",
+			APIVersion: "rbac.authorization.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bootstrapInput.CephRoleName,
+			Namespace: bootstrapInput.CephNamespace,
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				Verbs:     []string{"get", "update"},
+				APIGroups: []string{""},
+				Resources: []string{"configmaps", "secrets"},
+			},
+		},
+	}
+
+	createdRole, err := clientSet.RbacV1().Roles(bootstrapInput.CephNamespace).Create(context.TODO(), &provisionerRole, metav1.CreateOptions{})
+	Expect(err).NotTo(HaveOccurred())
+
+	fmt.Println("return type:", reflect.TypeOf(createdRole))
+	fmt.Println("secret result: ", createdRole)
+
+	// Create RoleBinding to bind above Role and ServiceAccount
+	provisionerRoleBinding := rbacv1.RoleBinding{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "RoleBinding",
+			APIVersion: "rbac.authorization.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bootstrapInput.CephRoleBindingName,
+			Namespace: bootstrapInput.CephNamespace,
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      bootstrapInput.CephServiceAccountName,
+				Namespace: bootstrapInput.CephNamespace,
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     bootstrapInput.CephRoleName,
+		},
+	}
+
+	createdRoleBinding, err := clientSet.RbacV1().RoleBindings(bootstrapInput.CephNamespace).Create(context.TODO(), &provisionerRoleBinding, metav1.CreateOptions{})
+	Expect(err).NotTo(HaveOccurred())
+
+	fmt.Println("return type:", reflect.TypeOf(createdRoleBinding))
+	fmt.Println("secret result: ", createdRoleBinding)
+})
+
+var _ = AfterSuite(func() {
+	deletePolicy = metav1.DeletePropagationForeground
+	err = clientSet.CoreV1().ConfigMaps(bootstrapInput.CephNamespace).Delete(context.TODO(), bootstrapInput.CephConfigMapName, metav1.DeleteOptions{
+		PropagationPolicy: &deletePolicy,
+	})
+	Expect(err).NotTo(HaveOccurred())
+
+	err = clientSet.CoreV1().Secrets(bootstrapInput.CephNamespace).Delete(context.TODO(), bootstrapInput.CephKeyringName, metav1.DeleteOptions{
+		PropagationPolicy: &deletePolicy,
+	})
+	Expect(err).NotTo(HaveOccurred())
+
+	err = clientSet.RbacV1().Roles(bootstrapInput.CephNamespace).Delete(context.TODO(), bootstrapInput.CephRoleName, metav1.DeleteOptions{
+		PropagationPolicy: &deletePolicy,
+	})
+	Expect(err).NotTo(HaveOccurred())
+
+	err = clientSet.RbacV1().RoleBindings(bootstrapInput.CephNamespace).Delete(context.TODO(), bootstrapInput.CephRoleBindingName, metav1.DeleteOptions{
+		PropagationPolicy: &deletePolicy,
+	})
+	Expect(err).NotTo(HaveOccurred())
+})
+
 var _ = Describe("[E2e] Bootstrap Test", func() {
 	defer GinkgoRecover()
 
-	var (
-		err              error
-		clientSet        *kubernetes.Clientset
-		bootstrapInput   BootstrapInput
-		testWorkspaceDir string
-	)
-
-	BeforeEach(func() {
-		var kubeconfig *string
-		if home := homedir.HomeDir(); home != "" {
-			kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-		} else {
-			kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-		}
-		flag.Parse()
-
-		kubeConfigWithFlag, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
-		Expect(err).NotTo(HaveOccurred())
-
-		clientSet, err = kubernetes.NewForConfig(kubeConfigWithFlag)
-		Expect(err).NotTo(HaveOccurred())
-
-		// Open bootstrap input yaml file
-		testWorkspaceDir, err = os.Getwd()
-		Expect(err).NotTo(HaveOccurred())
-
-		inputFilePath := filepath.Join(testWorkspaceDir, inputDir, inputFile)
-		fmt.Println("Opening file ", inputFilePath)
-		source, err := ioutil.ReadFile(inputFilePath)
-		Expect(err).NotTo(HaveOccurred())
-		fmt.Println(source)
-
-		err = yaml.Unmarshal(source, &bootstrapInput)
-		Expect(err).NotTo(HaveOccurred())
-
-		cephConfCm := corev1.ConfigMap{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "ConfigMap",
-				APIVersion: "v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      bootstrapInput.CephConfigMapName,
-				Namespace: bootstrapInput.CephNamespace,
-			},
-		}
-
-		createdCm, err := clientSet.CoreV1().ConfigMaps(bootstrapInput.CephNamespace).Create(context.TODO(), &cephConfCm, metav1.CreateOptions{})
-		Expect(err).NotTo(HaveOccurred())
-		fmt.Println("return type:", reflect.TypeOf(createdCm))
-
-		fmt.Println("cm result: ", createdCm)
-
-		cephKeyringSecret := corev1.Secret{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Secret",
-				APIVersion: "v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      bootstrapInput.CephKeyringName,
-				Namespace: bootstrapInput.CephNamespace,
-			},
-		}
-
-		createdSecret, err := clientSet.CoreV1().Secrets(bootstrapInput.CephNamespace).Create(context.TODO(), &cephKeyringSecret, metav1.CreateOptions{})
-		Expect(err).NotTo(HaveOccurred())
-
-		fmt.Println("return type:", reflect.TypeOf(createdSecret))
-		fmt.Println("secret result: ", createdSecret)
-
-		provisionerRole := rbacv1.Role{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Role",
-				APIVersion: "rbac.authorization.k8s.io/v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      bootstrapInput.CephRoleName,
-				Namespace: bootstrapInput.CephNamespace,
-			},
-			Rules: []rbacv1.PolicyRule{
-				{
-					Verbs:     []string{"get", "update"},
-					APIGroups: []string{""},
-					Resources: []string{"configmaps", "secrets"},
-				},
-			},
-		}
-
-		createdRole, err := clientSet.RbacV1().Roles(bootstrapInput.CephNamespace).Create(context.TODO(), &provisionerRole, metav1.CreateOptions{})
-		Expect(err).NotTo(HaveOccurred())
-
-		fmt.Println("return type:", reflect.TypeOf(createdRole))
-		fmt.Println("secret result: ", createdRole)
-
-		provisionerRoleBinding := rbacv1.RoleBinding{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "RoleBinding",
-				APIVersion: "rbac.authorization.k8s.io/v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      bootstrapInput.CephRoleBindingName,
-				Namespace: bootstrapInput.CephNamespace,
-			},
-			Subjects: []rbacv1.Subject{
-				{
-					Kind:      "ServiceAccount",
-					Name:      bootstrapInput.CephServiceAccountName,
-					Namespace: bootstrapInput.CephNamespace,
-				},
-			},
-			RoleRef: rbacv1.RoleRef{
-				APIGroup: "rbac.authorization.k8s.io",
-				Kind:     "Role",
-				Name:     bootstrapInput.CephRoleName,
-			},
-		}
-
-		createdRoleBinding, err := clientSet.RbacV1().RoleBindings(bootstrapInput.CephNamespace).Create(context.TODO(), &provisionerRoleBinding, metav1.CreateOptions{})
-		Expect(err).NotTo(HaveOccurred())
-
-		fmt.Println("return type:", reflect.TypeOf(createdRoleBinding))
-		fmt.Println("secret result: ", createdRoleBinding)
-	})
-
 	AfterEach(func() {
-		deletePolicy := metav1.DeletePropagationForeground
-		err = clientSet.CoreV1().ConfigMaps(bootstrapInput.CephNamespace).Delete(context.TODO(), bootstrapInput.CephConfigMapName, metav1.DeleteOptions{
-			PropagationPolicy: &deletePolicy,
-		})
-		Expect(err).NotTo(HaveOccurred())
-
-		err = clientSet.CoreV1().Secrets(bootstrapInput.CephNamespace).Delete(context.TODO(), bootstrapInput.CephKeyringName, metav1.DeleteOptions{
-			PropagationPolicy: &deletePolicy,
-		})
-		Expect(err).NotTo(HaveOccurred())
-
-		err = clientSet.RbacV1().Roles(bootstrapInput.CephNamespace).Delete(context.TODO(), bootstrapInput.CephRoleName, metav1.DeleteOptions{
-			PropagationPolicy: &deletePolicy,
-		})
-		Expect(err).NotTo(HaveOccurred())
-
-		err = clientSet.RbacV1().RoleBindings(bootstrapInput.CephNamespace).Delete(context.TODO(), bootstrapInput.CephRoleBindingName, metav1.DeleteOptions{
-			PropagationPolicy: &deletePolicy,
-		})
+		// Delete provisioner Pod
+		deletePolicy = metav1.DeletePropagationForeground
+		err = removeProvisionerPod(clientSet, bootstrapInput.CephNamespace)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("is simple e2e test case", func() {
+		// Create provisioner Pod
 		if bootstrapInput.TestManifestDir != "" {
-			err = runProvisionerContainer(clientSet,
+			err = runProvisionerPod(clientSet,
 				bootstrapInput.CephNamespace,
 				bootstrapInput.CephProvisionerImage,
 				bootstrapInput.TestManifestDir,
 				bootstrapInput.RegistryCredentialName,
 				bootstrapInput.CephProvisionerNodeName)
-
-			// Check bootstrap successfully completed
-			Expect(err).NotTo(HaveOccurred())
 		} else {
 			testManifestDir := filepath.Join(testWorkspaceDir, inputDir, hostPathDir)
-			err = runProvisionerContainer(clientSet,
+			err = runProvisionerPod(clientSet,
 				bootstrapInput.CephNamespace,
 				bootstrapInput.CephProvisionerImage,
 				testManifestDir,
 				bootstrapInput.RegistryCredentialName,
 				bootstrapInput.CephProvisionerNodeName)
-
-			// Check bootstrap successfully completed
-			Expect(err).NotTo(HaveOccurred())
 		}
+
+		Expect(err).NotTo(HaveOccurred())
 
 		// Check ConfigMap and Secret are successfully updated
 		cephConfCm, err := clientSet.CoreV1().ConfigMaps(bootstrapInput.CephNamespace).Get(context.TODO(), bootstrapInput.CephConfigMapName, metav1.GetOptions{})
@@ -229,5 +239,27 @@ var _ = Describe("[E2e] Bootstrap Test", func() {
 
 		secretData := cephKeyringSecret.Data
 		Expect(secretData).NotTo(BeEmpty())
+	})
+
+	It("runs pod again after bootstrap succeeded", func() {
+		// Create provisioner Pod
+		if bootstrapInput.TestManifestDir != "" {
+			err = runProvisionerPod(clientSet,
+				bootstrapInput.CephNamespace,
+				bootstrapInput.CephProvisionerImage,
+				bootstrapInput.TestManifestDir,
+				bootstrapInput.RegistryCredentialName,
+				bootstrapInput.CephProvisionerNodeName)
+		} else {
+			testManifestDir := filepath.Join(testWorkspaceDir, inputDir, hostPathDir)
+			err = runProvisionerPod(clientSet,
+				bootstrapInput.CephNamespace,
+				bootstrapInput.CephProvisionerImage,
+				testManifestDir,
+				bootstrapInput.RegistryCredentialName,
+				bootstrapInput.CephProvisionerNodeName)
+		}
+
+		Expect(err).NotTo(HaveOccurred())
 	})
 })

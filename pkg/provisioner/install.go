@@ -117,7 +117,7 @@ func installCephadm(targetNode node.NodeInterface) error {
 	}
 
 	fmt.Println("[installCephadm] executing mkdir")
-	const mkdirCmd = "mkdir /etc/ceph"
+	const mkdirCmd = "mkdir -p /etc/ceph"
 	err = processCmdOnNode(targetNode, mkdirCmd)
 
 	return err
