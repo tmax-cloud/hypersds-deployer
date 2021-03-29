@@ -5,6 +5,7 @@ PROVISIONER_IMAGE = hypersds-provisioner
 PROVISIONER_TAG = test
 
 build:
+	mkdir -p build
 	go build -o build/ ./...
 
 container:
