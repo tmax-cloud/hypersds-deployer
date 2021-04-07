@@ -15,13 +15,11 @@ import (
 func updateCephClusterToOp() error {
 	fmt.Println("\n----------------Start to update conf and keyring to operator---------------")
 
-	const pathConfToUpdate = pathConfigWorkingDir + cephConfToUpdate
 	err = cephConfig.ConfigFromAdm(common.IoUtilWrapper, pathConfToUpdate)
 	if err != nil {
 		return err
 	}
 
-	const pathKeyringToUpdate = pathConfigWorkingDir + cephKeyringToUpdate
 	err = cephConfig.SecretFromAdm(common.IoUtilWrapper, pathKeyringToUpdate)
 	if err != nil {
 		return err
@@ -41,8 +39,7 @@ func bootstrapCephadm(targetNode node.NodeInterface) error {
 	fmt.Println("\n----------------Start to bootstrap ceph---------------")
 
 	fmt.Println("[bootstrapCephadm] copying conf file")
-	const pathConf = pathConfigWorkingDir + cephConfNameFromCr
-	err = copyFile(targetNode, node.DESTINATION, pathConf, pathConf)
+	err = copyFile(targetNode, node.DESTINATION, pathConfFromCr, pathConfFromCr)
 	if err != nil {
 		return err
 	}
@@ -59,7 +56,7 @@ func bootstrapCephadm(targetNode node.NodeInterface) error {
 
 	fmt.Println("[bootstrapCephadm] executing bootstrap")
 	admBootstrapCmd := fmt.Sprintf("cephadm --image %s bootstrap --mon-ip %s --config %s",
-		cephImageName, monIp, pathConf)
+		cephImageName, monIp, pathConfFromCr)
 	err = processCmdOnNode(targetNode, admBootstrapCmd)
 	if err != nil {
 		return err

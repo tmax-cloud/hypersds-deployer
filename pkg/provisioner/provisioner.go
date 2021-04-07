@@ -25,6 +25,7 @@ type ProvisionerInterface interface {
 	setState(state ProvisionerState) error
 	setCephCluster(cephCluster hypersdsv1alpha1.CephClusterSpec) error
 	identifyProvisionerState() (ProvisionerState, error)
+	applyHost(yamlWrapper common.YamlInterface, execWrapper common.ExecInterface, ioUtilWrapper common.IoUtilInterface) error
 }
 
 type Provisioner struct {
@@ -158,6 +159,12 @@ func (p *Provisioner) Run() error {
 		if err != nil {
 			return err
 		}
+
+		err = p.applyHost(common.YamlWrapper, common.ExecWrapper, common.IoUtilWrapper)
+		if err != nil {
+			return err
+		}
+
 		err = p.applyOsd()
 		if err != nil {
 			return err
@@ -168,7 +175,6 @@ func (p *Provisioner) Run() error {
 		}
 	}
 
-	/// TODO: Check diff of host and osd, then apply differences
 	return nil
 }
 
@@ -191,12 +197,12 @@ func (p *Provisioner) identifyProvisionerState() (ProvisionerState, error) {
 	deployNode := nodes[0]
 
 	// Check base pkgs are installed
-	// TODO: may contain error if user removed docker but did not purge dpkg
+	// TODO: May contain error if user removed docker but did not purge dpkg
 	const checkDockerWorkingCmd = "dpkg --list | grep docker-ce"
 	_, err = deployNode.RunSshCmd(common.SshWrapper, checkDockerWorkingCmd)
 	// It considers any error that base pkgs are not installed
 	if err != nil {
-		// TODO: replace stdout to log out
+		// TODO: Replace stdout to log out
 		fmt.Println("[identifyProvisionerState] docker is not installed")
 		return InstallStarted, nil
 	}
@@ -211,7 +217,7 @@ func (p *Provisioner) identifyProvisionerState() (ProvisionerState, error) {
 		}
 
 		// Other error occurred on RunSshCmd
-		// TODO: replace stdout to log out
+		// TODO: Replace stdout to log out
 		fmt.Println("[identifyProvisionerState] cephadm installation check is failed")
 		return BasePkgInstalled, err
 	}
@@ -226,7 +232,7 @@ func (p *Provisioner) identifyProvisionerState() (ProvisionerState, error) {
 		}
 
 		// Other error occurred on RunSshCmd
-		// TODO: replace stdout to log out
+		// TODO: Replace stdout to log out
 		fmt.Println("[identifyProvisionerState] ceph bootstrap check is failed")
 		return CephadmPkgInstalled, err
 	}
@@ -234,7 +240,7 @@ func (p *Provisioner) identifyProvisionerState() (ProvisionerState, error) {
 	// Confirm some Ceph health is returned
 	const cephHealthPrefix = "HEALTH_"
 	if !strings.Contains(outputBootstrap.String(), cephHealthPrefix) {
-		// TODO: replace stdout to log out
+		// TODO: Replace stdout to log out
 		fmt.Println("[identifyProvisionerState] ceph status does not return HEALTH_*")
 
 		// TODO: Make own error pkg of hypersds-provisioner
@@ -247,13 +253,13 @@ func (p *Provisioner) identifyProvisionerState() (ProvisionerState, error) {
 	committed, err := checkKubeObjectUpdated(common.KubeWrapper)
 	if err != nil {
 		// Other error occurred on checkKubeObjectUpdated
-		// TODO: replace stdout to log out
+		// TODO: Replace stdout to log out
 		fmt.Println("[identifyProvisionerState] k8s configmap and secret check is failed")
 		return CephBootstrapped, err
 	}
 
 	if !committed {
-		// TODO: replace stdout to log out
+		// TODO: Replace stdout to log out
 		fmt.Println("[identifyProvisionerState] k8s configmap and secret are not updated")
 		return CephBootstrapped, nil
 	}
@@ -261,7 +267,7 @@ func (p *Provisioner) identifyProvisionerState() (ProvisionerState, error) {
 	return CephBootstrapCommitted, nil
 }
 
-// TODO: replace config const to inputs (e.g. K8sConfigMap, etc)
+// TODO: Replace config const to inputs (e.g. K8sConfigMap, etc)
 func checkKubeObjectUpdated(kubeWrapper common.KubeInterface) (bool, error) {
 	kubeConfig, err := kubeWrapper.InClusterConfig()
 	if err != nil {
@@ -276,9 +282,9 @@ func checkKubeObjectUpdated(kubeWrapper common.KubeInterface) (bool, error) {
 	// Check ceph.conf is updated to ConfigMap
 	configMap, err := clientSet.CoreV1().ConfigMaps(config.K8sNamespace).Get(context.TODO(), config.K8sConfigMap, metav1.GetOptions{})
 	if err != nil {
-		// configmap must exist
+		// Configmap must exist
 		if kubeerrors.IsNotFound(err) {
-			// TODO: replace stdout to log out
+			// TODO: Replace stdout to log out
 			fmt.Println("ConfigMap must exist")
 			return false, nil
 		} else {
@@ -286,7 +292,7 @@ func checkKubeObjectUpdated(kubeWrapper common.KubeInterface) (bool, error) {
 		}
 	}
 
-	// bootstrap commit has not occurred
+	// Bootstrap commit has not occurred
 	if configMap.Data == nil {
 		return false, nil
 	}
@@ -295,7 +301,7 @@ func checkKubeObjectUpdated(kubeWrapper common.KubeInterface) (bool, error) {
 	secret, err := clientSet.CoreV1().Secrets(config.K8sNamespace).Get(context.TODO(), config.K8sSecret, metav1.GetOptions{})
 	if err != nil {
 		if kubeerrors.IsNotFound(err) {
-			// TODO: replace stdout to log out
+			// TODO: Replace stdout to log out
 			fmt.Println("Secret must exist")
 			return false, nil
 		} else {
@@ -324,7 +330,7 @@ func init() {
 	// Unmarshal yaml file to CephCluster CR
 	cephClusterSpec, err = util.UtilWrapper.GetCephClusterSpec(common.IoUtilWrapper, common.YamlWrapper)
 	if err != nil {
-		// TODO: replace stdout to log out
+		// TODO: Replace stdout to log out
 		fmt.Println("[Provisioner] CephClusterSpec Parsing Error")
 		panic(err)
 	}
@@ -333,7 +339,7 @@ func init() {
 	// No one is allowed to modify CephCluster
 	err := provisionerInstance.setCephCluster(cephClusterSpec)
 	if err != nil {
-		// TODO: replace stdout to log out
+		// TODO: Replace stdout to log out
 		fmt.Println("[Provisioner] setCephCluster Error")
 		panic(err)
 	}
@@ -342,14 +348,14 @@ func init() {
 	// No one is allowed to modify ProvisionerState
 	provisionerState, err := provisionerInstance.identifyProvisionerState()
 	if err != nil {
-		// TODO: replace stdout to log out
+		// TODO: Replace stdout to log out
 		fmt.Println("[Provisioner] identifyProvisionerState Error")
 		panic(err)
 	}
 
 	err = provisionerInstance.setState(provisionerState)
 	if err != nil {
-		// TODO: replace stdout to log out
+		// TODO: Replace stdout to log out
 		fmt.Println("[Provisioner] setState Error")
 		panic(err)
 	}
