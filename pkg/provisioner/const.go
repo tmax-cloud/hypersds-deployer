@@ -9,6 +9,7 @@ const (
 	CephadmPkgInstalled    ProvisionerState = "AdmInstalled"
 	CephBootstrapped       ProvisionerState = "Bootstrapped"
 	CephBootstrapCommitted ProvisionerState = "Committed"
+	CephOsdDeployed        ProvisionerState = "OsdDeployed"
 )
 
 // File name, path, etc

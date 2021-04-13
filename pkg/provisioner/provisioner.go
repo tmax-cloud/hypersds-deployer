@@ -145,6 +145,27 @@ func (p *Provisioner) Run() error {
 		if err != nil {
 			return err
 		}
+
+		fallthrough
+
+	case CephBootstrapCommitted:
+		// Copy conf and keyring from deploy node for ceph-common
+		err = copyFile(deployNode, node.SOURCE, pathConfFromAdm, pathConfFromAdm)
+		if err != nil {
+			return err
+		}
+		err = copyFile(deployNode, node.SOURCE, pathKeyringFromAdm, pathKeyringFromAdm)
+		if err != nil {
+			return err
+		}
+		err = p.applyOsd()
+		if err != nil {
+			return err
+		}
+		err = p.setState(CephOsdDeployed)
+		if err != nil {
+			return err
+		}
 	}
 
 	/// TODO: Check diff of host and osd, then apply differences
