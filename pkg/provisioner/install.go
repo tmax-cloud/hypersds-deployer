@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strings"
 
 	common "hypersds-provisioner/pkg/common/wrapper"
 	node "hypersds-provisioner/pkg/node"
+	"hypersds-provisioner/pkg/osd"
+	util "hypersds-provisioner/pkg/util"
 )
 
 func updateCephClusterToOp() error {
@@ -190,6 +193,102 @@ func installBasePackage(targetNodeList []node.NodeInterface) error {
 		}
 	}
 
+	return nil
+}
+
+func (p *Provisioner) applyOsd() error {
+	fmt.Println("[applyOsd] get osds from CephOrch")
+
+	cmd := []string{"orch", "ls", "--service_type", "osd", "--export", "--refresh"}
+	output, err := util.RunCephCmd(common.ExecWrapper, cmd...)
+	if err != nil {
+		return processExecError(err, output)
+	}
+
+	var osdsFromOrch []*osd.Osd
+	if !strings.Contains("No services reported", output.String()) {
+		rawOsdsFromOrch := output.Bytes()
+
+		osdsFromOrch, err = osd.OsdWrapper.NewOsdsFromCephOrch(common.YamlWrapper, rawOsdsFromOrch)
+		if err != nil {
+			return err
+		}
+	}
+	osdsFromCephCr, err := osd.OsdWrapper.NewOsdsFromCephCr(p.cephCluster)
+	if err != nil {
+		return err
+	}
+
+	var osdMap map[string]*osd.Osd
+	var removeOsdMap map[string]bool
+
+	osdMap = make(map[string]*osd.Osd)
+	removeOsdMap = make(map[string]bool)
+
+	for _, osdOrch := range osdsFromOrch {
+		osdService, err := osdOrch.GetService()
+		if err != nil {
+			return err
+		}
+		osdServiceId, err := osdService.GetServiceId()
+		if err != nil {
+			return err
+		}
+		osdMap[osdServiceId] = osdOrch
+		removeOsdMap[osdServiceId] = true
+	}
+
+	fmt.Println("[applyOsd] compare osds between CephCR and CephOrch")
+
+	for _, osdCephCr := range osdsFromCephCr {
+		osdService, err := osdCephCr.GetService()
+		if err != nil {
+			return err
+		}
+		osdServiceId, err := osdService.GetServiceId()
+		if err != nil {
+			return err
+		}
+		osdOrch, exist := osdMap[osdServiceId]
+		if exist {
+			addDeviceList, removeDeviceList, err := osdOrch.CompareDataDevices(osdCephCr)
+			if err != nil {
+				return err
+			}
+			removeOsdMap[osdServiceId] = false
+			//todo remove disk ....
+			fmt.Printf("[applyOsd] osd service: %s, add: %+q, remove: %+q\n", osdServiceId, addDeviceList, removeDeviceList)
+		}
+
+		fmt.Println("[applyOsd] make osd yaml")
+
+		osdFileName := osdServiceId + ".yaml"
+		err = osdCephCr.MakeYmlFile(common.YamlWrapper, common.IoUtilWrapper, osdFileName)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("[applyOsd] apply osd service: %s\n", osdServiceId)
+
+		applyCmd := []string{"orch", "apply", "-i", osdFileName}
+		output, err = util.RunCephCmd(common.ExecWrapper, applyCmd...)
+		if err != nil {
+			return processExecError(err, output)
+		}
+	}
+	for osdServiceId, value := range removeOsdMap {
+		if value {
+			osdServiceName := "osd." + osdServiceId
+
+			fmt.Printf("[applyOsd] remove osd service: %s\n", osdServiceName)
+
+			removeCmd := []string{"orch", "rm", osdServiceName}
+			output, err = util.RunCephCmd(common.ExecWrapper, removeCmd...)
+			if err != nil {
+				return processExecError(err, output)
+			}
+		}
+	}
 	return nil
 }
 

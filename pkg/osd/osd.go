@@ -1,26 +1,25 @@
 package osd
 
 import (
-	"fmt"
+	"bytes"
 	"hypersds-provisioner/pkg/common/wrapper"
 	"hypersds-provisioner/pkg/service"
 
 	hypersdsv1alpha1 "github.com/tmax-cloud/hypersds-operator/api/v1alpha1"
 )
 
-type Osd struct {
-	DataDevices     DeviceInterface `yaml:"data_devices,omitempty"`
-	DbDevices       DeviceInterface `yaml:"db_devices,omitempty"`
-	WalDevices      DeviceInterface `yaml:"wal_devices,omitempty"`
-	JournalDevices  DeviceInterface `yaml:"journal_devices,omitempty"`
-	DataDirectories []string        `yaml:"data_directories,omitempty"`
-	OsdsPerDevice   int             `yaml:"osds_per_device,omitempty"`
-	Objectstore     string          `yaml:"objectstore,omitempty"`
-	Encrypted       bool            `yaml:"encrypted,omitempty"`
-
-	service service.ServiceInterface `yaml:"-"`
+type OsdSpec struct {
+	DataDevices     Device   `yaml:"data_devices,omitempty"`
+	DbDevices       Device   `yaml:"db_devices,omitempty"`
+	WalDevices      Device   `yaml:"wal_devices,omitempty"`
+	JournalDevices  Device   `yaml:"journal_devices,omitempty"`
+	DataDirectories []string `yaml:"data_directories,omitempty"`
+	OsdsPerDevice   int      `yaml:"osds_per_device,omitempty"`
+	Objectstore     string   `yaml:"objectstore,omitempty"`
+	Encrypted       bool     `yaml:"encrypted,omitempty"`
+	Filter_logic    string   `yaml:"filter_logic,omitempty"`
 	/*
-	    				 db_slots=None,  # type: Optional[int]
+	    				db_slots=None,  # type: Optional[int]
 	                    wal_slots=None,  # type: Optional[int]
 	                    osd_id_claims=None,  # type: Optional[Dict[str, List[str]]]
 	                    block_db_size=None,  # type: Union[int, str, None]
@@ -28,78 +27,149 @@ type Osd struct {
 	                    journal_size=None,  # type: Union[int, str, None]
 	                    service_type=None,  # type: Optional[str]
 	                    unmanaged=False,  # type: bool
-	                    filter_logic='AND',  # type: str
-	   				 preview_only=False,  # type: bool
+	   				preview_only=False,  # type: bool
 	*/
 }
 
-func (o *Osd) SetService(s service.ServiceInterface) error {
-	o.service = s
+type Osd struct {
+	Service service.Service `yaml:",inline"`
+	Spec    OsdSpec         `yaml:"spec,omitempty"`
+}
+
+type osdStruct struct {
+}
+
+func (o *Osd) SetService(s service.Service) error {
+	o.Service = s
 	return nil
 }
 
-func (o *Osd) SetDataDevices(dataDevices DeviceInterface) error {
-	o.DataDevices = dataDevices
+func (o *Osd) SetDataDevices(dataDevices Device) error {
+	o.Spec.DataDevices = dataDevices
 	return nil
 }
 
-func (o Osd) GetService() (service.ServiceInterface, error) {
-	return o.service, nil
+func (o *Osd) GetService() (service.Service, error) {
+	return o.Service, nil
 }
 
-func (o Osd) GetDataDevices() (DeviceInterface, error) {
-	return o.DataDevices, nil
+func (o *Osd) GetDataDevices() (Device, error) {
+	return o.Spec.DataDevices, nil
 }
 
-func NewOsdFromCephCr(osdSpec hypersdsv1alpha1.CephClusterOsdSpec) *Osd {
-	var hosts []string
-	osd := Osd{}
-	dataDevices := Device{}
-	s := service.Service{}
-	placement := service.Placement{}
-
-	// set Placement, Service
-	hosts = append(hosts, osdSpec.HostName)
-	_ = placement.SetHosts(hosts)
-
-	_ = s.SetPlacement(&placement)
-	_ = s.SetServiceType("osd")
-	_ = s.SetServiceId("osd_" + osdSpec.HostName)
-
-	osd.SetService(&s)
-
-	// set device
-	_ = dataDevices.SetPaths(osdSpec.Devices)
-	_ = osd.SetDataDevices(&dataDevices)
-
-	return &osd
-}
-
-func (osd *Osd) MakeYml(yaml wrapper.YamlInterface) ([]byte, error) {
-	s, _ := osd.GetService()
-	serviceYaml, _ := yaml.Marshal(s)
-	oYaml, _ := yaml.Marshal(osd)
-	osdYaml := append(serviceYaml, oYaml...)
-	return osdYaml, nil
-}
-
-func TestOsd() {
-	osdSpec := hypersdsv1alpha1.CephClusterOsdSpec{
-		HostName: "test", Devices: []string{"ha"},
+func (o *Osd) CompareDataDevices(targetOsd *Osd) ([]string, []string, error) {
+	// o: orch osd, targetOsd: cephCr osd
+	dataDevices, err := o.GetDataDevices()
+	if err != nil {
+		return nil, nil, err
 	}
-	osd := NewOsdFromCephCr(osdSpec)
-	tempYaml, _ := osd.MakeYml(wrapper.YamlWrapper)
-	fmt.Print(string(tempYaml))
-}
-
-/*
-
-func GetOsdsFromCephCR(cephSpec hypersdsv1alpha1.CephClusterSpec) []*Osd {
-	var osdList []*Osd
-	for i := 0; i < len(cephSpec.Osd); i++ {
-		osd := NewOsdFromCephCR(cephSpec.Osd[i])
-		osdList = append(osdList, osd)
+	devicePaths, err := dataDevices.GetPaths()
+	if err != nil {
+		return nil, nil, err
 	}
-	return osdList
+	targetDataDevices, err := targetOsd.GetDataDevices()
+	if err != nil {
+		return nil, nil, err
+	}
+	targetDevicePaths, err := targetDataDevices.GetPaths()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var deviceMap map[string]bool
+	var addDeviceList, removeDeviceList []string
+
+	deviceMap = make(map[string]bool)
+
+	for _, device := range devicePaths {
+		deviceMap[device] = false
+	}
+	for _, device := range targetDevicePaths {
+		_, exists := deviceMap[device]
+		if exists {
+			deviceMap[device] = true
+		} else {
+			addDeviceList = append(addDeviceList, device)
+		}
+	}
+
+	for device, value := range deviceMap {
+		if !value {
+			removeDeviceList = append(removeDeviceList, device)
+		}
+	}
+	return addDeviceList, removeDeviceList, nil
 }
-*/
+
+func (o *Osd) MakeYmlFile(yaml wrapper.YamlInterface, ioUtilWrapper wrapper.IoUtilInterface, fileName string) error {
+	osdYaml, err := yaml.Marshal(o)
+	if err != nil {
+		return err
+	}
+
+	err = ioUtilWrapper.WriteFile(fileName, osdYaml, 0644)
+	return err
+}
+
+func (o *osdStruct) NewOsdsFromCephCr(cephSpec hypersdsv1alpha1.CephClusterSpec) ([]*Osd, error) {
+	var osds []*Osd
+
+	for _, osdSpec := range cephSpec.Osd {
+		var hosts []string
+		var osd Osd
+		var dataDevices Device
+		var s service.Service
+		var placement service.Placement
+
+		// set Placement, Service
+		hosts = append(hosts, osdSpec.HostName)
+		err := placement.SetHosts(hosts)
+		if err != nil {
+			return nil, err
+		}
+		err = s.SetPlacement(placement)
+		if err != nil {
+			return nil, err
+		}
+		err = s.SetServiceType("osd")
+		if err != nil {
+			return nil, err
+		}
+		err = s.SetServiceId("osd_" + osdSpec.HostName)
+		if err != nil {
+			return nil, err
+		}
+		// set device
+		err = dataDevices.SetPaths(osdSpec.Devices)
+		if err != nil {
+			return nil, err
+		}
+		err = osd.SetDataDevices(dataDevices)
+		if err != nil {
+			return nil, err
+		}
+		err = osd.SetService(s)
+		if err != nil {
+			return nil, err
+		}
+		osds = append(osds, &osd)
+	}
+
+	return osds, nil
+}
+
+func (o *osdStruct) NewOsdsFromCephOrch(yaml wrapper.YamlInterface, rawOsdsFromOrch []byte) ([]*Osd, error) {
+
+	var osds []*Osd
+	readerOrch := bytes.NewReader(rawOsdsFromOrch)
+	dec := yaml.NewDecoder(readerOrch)
+	for {
+		var osd Osd
+		err := dec.Decode(&osd)
+		if err != nil {
+			break
+		}
+		osds = append(osds, &osd)
+	}
+	return osds, nil
+}
