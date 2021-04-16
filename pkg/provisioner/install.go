@@ -58,7 +58,8 @@ func bootstrapCephadm(targetNode node.NodeInterface) error {
 	}
 
 	fmt.Println("[bootstrapCephadm] executing bootstrap")
-	admBootstrapCmd := fmt.Sprintf("cephadm bootstrap --mon-ip %s --config %s", monIp, pathConf)
+	admBootstrapCmd := fmt.Sprintf("cephadm --image %s bootstrap --mon-ip %s --config %s",
+		cephImageName, monIp, pathConf)
 	err = processCmdOnNode(targetNode, admBootstrapCmd)
 	if err != nil {
 		return err
@@ -74,9 +75,8 @@ func bootstrapCephadm(targetNode node.NodeInterface) error {
 func installCephadm(targetNode node.NodeInterface) error {
 	fmt.Println("\n----------------Start to install cephadm---------------")
 
-	// TODO: Specify release version
 	fmt.Println("[installCephadm] executing curl cephadm")
-	curlCephadmCmd := "curl --silent --remote-name --location https://github.com/ceph/ceph/raw/octopus/src/cephadm/cephadm"
+	curlCephadmCmd := fmt.Sprintf("curl --silent --remote-name --location https://github.com/ceph/ceph/raw/v%s/src/cephadm/cephadm", cephVersion)
 	err = processCmdOnNode(targetNode, curlCephadmCmd)
 	if err != nil {
 		return err
@@ -91,7 +91,7 @@ func installCephadm(targetNode node.NodeInterface) error {
 
 	// TODO: Specify release version
 	fmt.Println("[installCephadm] executing cephadm add-repo")
-	admAddRepoCmd := "./cephadm add-repo --release octopus"
+	admAddRepoCmd := fmt.Sprintf("./cephadm add-repo --version %s", cephVersion)
 	err = processCmdOnNode(targetNode, admAddRepoCmd)
 	if err != nil {
 		return err

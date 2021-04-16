@@ -23,4 +23,6 @@ const (
 	pathConfFromCr       = pathConfigWorkingDir + cephConfNameFromCr
 	pathConfFromAdm      = "/etc/ceph/ceph.conf"
 	pathKeyringFromAdm   = "/etc/ceph/ceph.client.admin.keyring"
+	cephVersion          = "15.2.8"
+	cephImageName        = "ceph/ceph:v" + cephVersion
 )
