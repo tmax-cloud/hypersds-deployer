@@ -3,6 +3,8 @@ package e2e
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io/ioutil"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -53,10 +55,33 @@ func isPodCompleted(client *kubernetes.Clientset, provisionerNamespace string) w
 		case corev1.PodSucceeded:
 			return true, nil
 		case corev1.PodFailed:
+			err = printPodLog(client, provisionerNamespace)
+			if err != nil {
+				fmt.Println("Fail to print pod log")
+			}
 			return true, errors.New("Pod failed")
 		}
 		return false, nil
 	}
+}
+
+func printPodLog(client *kubernetes.Clientset, provsionerNamespace string) error {
+	logOptions := corev1.PodLogOptions{
+		Container: podName,
+	}
+	req := client.CoreV1().Pods(provsionerNamespace).GetLogs(podName, &logOptions)
+	podLogs, err := req.Stream(context.TODO())
+	if err != nil {
+		return err
+	}
+	defer podLogs.Close()
+
+	buf, err := ioutil.ReadAll(podLogs)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("[START][%s log]\n%s\n[END][%s log]\n", podName, string(buf), podName)
+	return nil
 }
 
 func newProvisonerPod(provisionerNamespace, provisionerImage, volumeHostPath, registryName, nodeName string) *corev1.Pod {
